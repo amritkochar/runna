@@ -4,6 +4,7 @@ import { Text, View } from '@/components/Themed';
 import { useRunStore } from '@/stores/runStore';
 import { useSpotify } from '@/hooks/useSpotify';
 import { useVoiceCompanion } from '@/hooks/useVoiceCompanion';
+import { useGPSTracking } from '@/hooks/useGPSTracking';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 export default function RunScreen() {
@@ -14,6 +15,9 @@ export default function RunScreen() {
     voiceEnabled,
     isListening,
     isSpeaking,
+    gpsMetrics,
+    locationPermission,
+    gpsError,
     startRun,
     endRun,
     updateRunStats,
@@ -33,6 +37,9 @@ export default function RunScreen() {
 
   const [duration, setDuration] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Initialize GPS tracking
+  useGPSTracking();
 
   // Timer effect
   useEffect(() => {
@@ -84,6 +91,22 @@ export default function RunScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const formatDistance = (meters: number) => {
+    const km = meters / 1000;
+    return km.toFixed(2);
+  };
+
+  const formatPace = (minPerKm: number) => {
+    if (minPerKm === 0 || !isFinite(minPerKm)) return '--:--';
+    const mins = Math.floor(minPerKm);
+    const secs = Math.floor((minPerKm - mins) * 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatSpeed = (kmh: number) => {
+    return kmh.toFixed(1);
+  };
+
   const handleStartStop = () => {
     if (isRunning) {
       endRun();
@@ -111,6 +134,46 @@ export default function RunScreen() {
         </Text>
         <Text style={styles.timer}>{formatTime(duration)}</Text>
       </View>
+
+      {/* GPS Metrics */}
+      {isRunning && (
+        <View style={styles.metricsSection}>
+          {/* Distance */}
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Distance</Text>
+            <Text style={styles.metricValue}>
+              {formatDistance(gpsMetrics.totalDistance)}
+            </Text>
+            <Text style={styles.metricUnit}>km</Text>
+          </View>
+
+          {/* Current Pace */}
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Pace</Text>
+            <Text style={styles.metricValue}>
+              {formatPace(gpsMetrics.currentPace)}
+            </Text>
+            <Text style={styles.metricUnit}>min/km</Text>
+          </View>
+
+          {/* Speed */}
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Speed</Text>
+            <Text style={styles.metricValue}>
+              {formatSpeed(gpsMetrics.currentSpeed)}
+            </Text>
+            <Text style={styles.metricUnit}>km/h</Text>
+          </View>
+        </View>
+      )}
+
+      {/* GPS Error Alert */}
+      {gpsError && (
+        <View style={styles.errorSection}>
+          <FontAwesome name="exclamation-triangle" size={16} color="#FF9500" />
+          <Text style={styles.errorText}>{gpsError}</Text>
+        </View>
+      )}
 
       {/* Voice Companion Status */}
       {voiceEnabled && isRunning && (
@@ -207,11 +270,12 @@ export default function RunScreen() {
       {/* Instructions */}
       {!isRunning && (
         <View style={styles.instructions}>
-          <Text style={styles.instructionTitle}>During your run, you can:</Text>
-          <Text style={styles.instruction}>Ask for jokes, news, or motivation</Text>
-          <Text style={styles.instruction}>Control your music with your voice</Text>
-          <Text style={styles.instruction}>Save notes and reminders</Text>
-          <Text style={styles.instruction}>Ask about your running stats</Text>
+          <Text style={styles.instructionTitle}>During your run:</Text>
+          <Text style={styles.instruction}>📍 GPS tracks your distance, pace, and speed</Text>
+          <Text style={styles.instruction}>🎤 Ask for jokes, news, or motivation</Text>
+          <Text style={styles.instruction}>🎵 Control your music with your voice</Text>
+          <Text style={styles.instruction}>📝 Save notes and reminders</Text>
+          <Text style={styles.instruction}>📊 Ask about your running stats</Text>
         </View>
       )}
     </View>
@@ -363,5 +427,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.6,
     marginBottom: 6,
+  },
+  metricsSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 32,
+  },
+  metricCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+  },
+  metricLabel: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  metricValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  metricUnit: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginTop: 4,
+  },
+  errorSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FF9500',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#FF9500',
   },
 });
