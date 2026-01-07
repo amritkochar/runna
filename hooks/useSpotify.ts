@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useAuth } from './useAuth';
-import { useRunStore } from '../stores/runStore';
 import {
-  getValidSpotifyToken,
-  getPlaybackState,
-  getCurrentlyPlaying,
-  play,
-  pause,
-  skipToNext,
-  skipToPrevious,
   addToQueue,
-  searchTracks,
-  checkPremiumStatus,
+  getCurrentlyPlaying,
+  getDevices,
+  getPlaybackState,
   getSpotifyUser,
+  getValidSpotifyToken,
+  pause,
+  play,
+  searchTracks,
+  skipToNext,
+  skipToPrevious
 } from '../lib/spotify';
+import { authenticateSpotify } from '../lib/spotify-sdk';
 import { updateProfile } from '../lib/supabase';
+import { useRunStore } from '../stores/runStore';
+import { useAuth } from './useAuth';
 
 export function useSpotify() {
   const { user, refreshProfile } = useAuth();
@@ -27,6 +28,7 @@ export function useSpotify() {
   } = useRunStore();
 
   const pollInterval = useRef<NodeJS.Timeout | null>(null);
+  const pollErrorCount = useRef(0);
 
   // Poll for playback state
   const startPolling = useCallback(async () => {
@@ -38,11 +40,37 @@ export function useSpotify() {
         if (token) {
           const state = await getPlaybackState(token);
           setPlaybackState(state);
+          pollErrorCount.current = 0; // Reset error count on success
+        } else {
+          // No valid token, stop polling
+          if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+          }
+          setSpotifyConnected(false, false);
         }
       } catch (error) {
-        console.error('Error polling playback:', error);
+        pollErrorCount.current++;
+
+        // Only log every 5th error to avoid spam
+        if (pollErrorCount.current % 5 === 1) {
+          console.warn('Spotify polling failed, will retry...', error);
+        }
+
+        // Stop polling after 10 consecutive failures
+        if (pollErrorCount.current >= 10) {
+          console.error('Spotify polling failed 10 times, stopping. Please reconnect Spotify.');
+          if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+          }
+          setSpotifyConnected(false, false);
+        }
       }
     };
+
+    // Reset error count when starting
+    pollErrorCount.current = 0;
 
     // Poll immediately, then every 3 seconds
     await poll();
@@ -66,6 +94,39 @@ export function useSpotify() {
 
     return () => stopPolling();
   }, [spotifyConnected, startPolling, stopPolling]);
+
+  // Connect to Spotify using native SDK
+  const connectSpotify = async () => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Authenticate via native SDK
+      const session = await authenticateSpotify();
+
+      // Get user info and check premium status
+      const spotifyUser = await getSpotifyUser(session.accessToken);
+      const isPremium = spotifyUser.product === 'premium';
+
+      // Store in Supabase
+      await updateProfile(user.id, {
+        spotify_user_id: spotifyUser.id,
+        spotify_access_token: session.accessToken,
+        spotify_refresh_token: session.refreshToken || null,
+        spotify_is_premium: isPremium,
+      });
+
+      // Update local state
+      setSpotifyConnected(true, isPremium);
+      await refreshProfile();
+
+      return { success: true, isPremium };
+    } catch (error) {
+      console.error('Spotify authentication failed:', error);
+      throw error;
+    }
+  };
 
   // Handle Spotify SDK authentication callback
   // This is called from the native Spotify SDK
@@ -110,63 +171,131 @@ export function useSpotify() {
     await refreshProfile();
   };
 
-  // Playback controls (only work for Premium users)
-  const togglePlayback = async () => {
+  /**
+   * Helper to perform an action, optionally retrying with device activation
+   * if a 404 (No active device) is encountered.
+   */
+  const performWithRetry = async (
+    action: (token: string, deviceId?: string) => Promise<void>
+  ) => {
     if (!user || !spotifyIsPremium) return;
 
     const token = await getValidSpotifyToken(user.id);
     if (!token) return;
 
     try {
-      if (playbackState?.is_playing) {
-        await pause(token);
-      } else {
-        await play(token);
-      }
+      // First try: simple attempt
+      await action(token);
+    } catch (error: any) {
+      // Check for 404 (No active device)
+      if (error.message && error.message.includes('404')) {
+        console.log('No active device, attempting to wake up a device...');
+        try {
+          // Get available devices
+          const devicesResponse = await getDevices(token);
+          const devices = devicesResponse.devices || [];
 
-      // Update state immediately for responsiveness
-      setPlaybackState(
-        playbackState
-          ? { ...playbackState, is_playing: !playbackState.is_playing }
-          : null
-      );
+          if (devices.length > 0) {
+            // Find best device (active > smartphone > computer > first)
+            // Ideally we want something that can wake up
+            const targetDevice =
+              devices.find((d: any) => d.is_active) ||
+              devices.find((d: any) => d.type === 'Smartphone') ||
+              devices.find((d: any) => d.type === 'Computer') ||
+              devices[0];
+
+            if (targetDevice) {
+              console.log(`Activating device: ${targetDevice.name} (${targetDevice.id})`);
+
+              // We can pass the device ID to the action directly if supported,
+              // but transferPlayback ensures it's active.
+              // Ideally, just passing deviceId to play/next is enough.
+
+              // Second try: with deviceId
+              await action(token, targetDevice.id);
+
+              // Force refresh state
+              setTimeout(async () => {
+                const state = await getPlaybackState(token);
+                setPlaybackState(state);
+              }, 500);
+              return;
+            }
+          }
+          throw new Error('No available Spotify devices found. Please open Spotify on a device.');
+        } catch (retryError) {
+          console.error('Error processing retry with device activation:', retryError);
+          // throw original error if we couldn't fix it
+          throw error;
+        }
+      }
+      // Re-throw if not 404 or retry failed
+      throw error;
+    }
+  };
+
+  // Playback controls (only work for Premium users)
+  const togglePlayback = async () => {
+    try {
+      await performWithRetry(async (token, deviceId) => {
+        if (playbackState?.is_playing) {
+          // Pause doesn't strictly need deviceId usually, but we keep signature consistent
+          await pause(token);
+        } else {
+          await play(token, deviceId);
+        }
+      });
+
+      // Update state optimistic/delayed
+      setTimeout(async () => {
+        if (!user) return;
+        const token = await getValidSpotifyToken(user.id);
+        if (token) {
+          const state = await getPlaybackState(token);
+          setPlaybackState(state);
+        }
+      }, 300);
+
     } catch (error) {
       console.error('Error toggling playback:', error);
     }
   };
 
   const nextTrack = async () => {
-    if (!user || !spotifyIsPremium) return;
-
-    const token = await getValidSpotifyToken(user.id);
-    if (!token) return;
-
     try {
-      await skipToNext(token);
+      await performWithRetry(async (token, deviceId) => {
+        await skipToNext(token, deviceId);
+      });
 
       // Refresh playback state after a short delay
       setTimeout(async () => {
-        const state = await getPlaybackState(token);
-        setPlaybackState(state);
+        if (!user) return;
+        const token = await getValidSpotifyToken(user.id);
+        if (token) {
+          const state = await getPlaybackState(token);
+          setPlaybackState(state);
+        }
       }, 300);
+
     } catch (error) {
       console.error('Error skipping track:', error);
     }
   };
 
   const previousTrack = async () => {
-    if (!user || !spotifyIsPremium) return;
-
-    const token = await getValidSpotifyToken(user.id);
-    if (!token) return;
-
     try {
-      await skipToPrevious(token);
+      await performWithRetry(async (token, deviceId) => {
+        await skipToPrevious(token, deviceId);
+      });
 
       // Refresh playback state after a short delay
       setTimeout(async () => {
-        const state = await getPlaybackState(token);
-        setPlaybackState(state);
+        if (!user) return;
+        const token = await getValidSpotifyToken(user.id);
+        if (token) {
+          const state = await getPlaybackState(token);
+          setPlaybackState(state);
+        }
       }, 300);
     } catch (error) {
       console.error('Error going to previous track:', error);
@@ -174,6 +303,11 @@ export function useSpotify() {
   };
 
   const queueTrack = async (trackUri: string) => {
+    // Queue endpoint doesn't support device_id really, but we can try basic way
+    // For now we assume if queue fails with 404 we can't easily fix it without starting playback first
+    // So we leave this as is or implement similar logic if needed.
+    // Usually queueing is fine if a device exists even if not playing?
+    // Actually queue requires active device too.
     if (!user || !spotifyIsPremium) return;
 
     const token = await getValidSpotifyToken(user.id);
@@ -223,6 +357,7 @@ export function useSpotify() {
     isPlaying: playbackState?.is_playing ?? false,
 
     // Auth
+    connectSpotify,
     handleSpotifyAuth,
     disconnectSpotify,
 

@@ -1,0 +1,111 @@
+diff --git a/node_modules/react-native-webrtc/src/MediaDevices.ts b/node_modules/react-native-webrtc/src/MediaDevices.ts
+index c647667..42920f6 100644
+--- a/node_modules/react-native-webrtc/src/MediaDevices.ts
++++ b/node_modules/react-native-webrtc/src/MediaDevices.ts
+@@ -1,4 +1,4 @@
+-import { EventTarget, Event, defineEventAttribute } from 'event-target-shim/index';
++import { EventTarget, Event, defineEventAttribute } from 'event-target-shim';
+ import { NativeModules } from 'react-native';
+ 
+ import getDisplayMedia from './getDisplayMedia';
+diff --git a/node_modules/react-native-webrtc/src/MediaStream.ts b/node_modules/react-native-webrtc/src/MediaStream.ts
+index 1c2437e..74c9c11 100644
+--- a/node_modules/react-native-webrtc/src/MediaStream.ts
++++ b/node_modules/react-native-webrtc/src/MediaStream.ts
+@@ -1,4 +1,4 @@
+-import { EventTarget, defineEventAttribute } from 'event-target-shim/index';
++import { EventTarget, defineEventAttribute } from 'event-target-shim';
+ import { NativeModules } from 'react-native';
+ 
+ import MediaStreamTrack, { MediaStreamTrackInfo } from './MediaStreamTrack';
+diff --git a/node_modules/react-native-webrtc/src/MediaStreamTrack.ts b/node_modules/react-native-webrtc/src/MediaStreamTrack.ts
+index f0d52e1..a33e8b7 100644
+--- a/node_modules/react-native-webrtc/src/MediaStreamTrack.ts
++++ b/node_modules/react-native-webrtc/src/MediaStreamTrack.ts
+@@ -1,4 +1,4 @@
+-import { EventTarget, Event, defineEventAttribute } from 'event-target-shim/index';
++import { EventTarget, Event, defineEventAttribute } from 'event-target-shim';
+ import { NativeModules } from 'react-native';
+ 
+ import { MediaTrackConstraints } from './Constraints';
+diff --git a/node_modules/react-native-webrtc/src/MediaStreamTrackEvent.ts b/node_modules/react-native-webrtc/src/MediaStreamTrackEvent.ts
+index 501de5a..935e110 100644
+--- a/node_modules/react-native-webrtc/src/MediaStreamTrackEvent.ts
++++ b/node_modules/react-native-webrtc/src/MediaStreamTrackEvent.ts
+@@ -1,4 +1,4 @@
+-import { Event } from 'event-target-shim/index';
++import { Event } from 'event-target-shim';
+ 
+ import type MediaStreamTrack from './MediaStreamTrack';
+ 
+diff --git a/node_modules/react-native-webrtc/src/MessageEvent.ts b/node_modules/react-native-webrtc/src/MessageEvent.ts
+index 5f6dcf9..5c50a8a 100644
+--- a/node_modules/react-native-webrtc/src/MessageEvent.ts
++++ b/node_modules/react-native-webrtc/src/MessageEvent.ts
+@@ -1,4 +1,4 @@
+-import { Event } from 'event-target-shim/index';
++import { Event } from 'event-target-shim';
+ 
+ export type MessageEventData = string | ArrayBuffer | Blob;
+ 
+diff --git a/node_modules/react-native-webrtc/src/RTCDataChannel.ts b/node_modules/react-native-webrtc/src/RTCDataChannel.ts
+index a99ed1e..4c0a0a2 100644
+--- a/node_modules/react-native-webrtc/src/RTCDataChannel.ts
++++ b/node_modules/react-native-webrtc/src/RTCDataChannel.ts
+@@ -1,5 +1,5 @@
+ import * as base64 from 'base64-js';
+-import { EventTarget, defineEventAttribute } from 'event-target-shim/index';
++import { EventTarget, defineEventAttribute } from 'event-target-shim';
+ import { NativeModules } from 'react-native';
+ 
+ import { addListener, removeListener } from './EventEmitter';
+diff --git a/node_modules/react-native-webrtc/src/RTCDataChannelEvent.ts b/node_modules/react-native-webrtc/src/RTCDataChannelEvent.ts
+index 956d059..fca48f1 100644
+--- a/node_modules/react-native-webrtc/src/RTCDataChannelEvent.ts
++++ b/node_modules/react-native-webrtc/src/RTCDataChannelEvent.ts
+@@ -1,4 +1,4 @@
+-import { Event } from 'event-target-shim/index';
++import { Event } from 'event-target-shim';
+ 
+ import type RTCDataChannel from './RTCDataChannel';
+ 
+diff --git a/node_modules/react-native-webrtc/src/RTCErrorEvent.ts b/node_modules/react-native-webrtc/src/RTCErrorEvent.ts
+index 6a0a286..0072726 100644
+--- a/node_modules/react-native-webrtc/src/RTCErrorEvent.ts
++++ b/node_modules/react-native-webrtc/src/RTCErrorEvent.ts
+@@ -1,4 +1,4 @@
+-import { Event } from 'event-target-shim/index';
++import { Event } from 'event-target-shim';
+ 
+ type RTCPeerConnectionErrorFunc =
+     | 'addTransceiver'
+diff --git a/node_modules/react-native-webrtc/src/RTCIceCandidateEvent.ts b/node_modules/react-native-webrtc/src/RTCIceCandidateEvent.ts
+index af4d11a..663bc2a 100644
+--- a/node_modules/react-native-webrtc/src/RTCIceCandidateEvent.ts
++++ b/node_modules/react-native-webrtc/src/RTCIceCandidateEvent.ts
+@@ -1,4 +1,4 @@
+-import { Event } from 'event-target-shim/index';
++import { Event } from 'event-target-shim';
+ 
+ import type RTCIceCandidate from './RTCIceCandidate';
+ 
+diff --git a/node_modules/react-native-webrtc/src/RTCPeerConnection.ts b/node_modules/react-native-webrtc/src/RTCPeerConnection.ts
+index 9cfe1a5..3dbff5b 100644
+--- a/node_modules/react-native-webrtc/src/RTCPeerConnection.ts
++++ b/node_modules/react-native-webrtc/src/RTCPeerConnection.ts
+@@ -1,4 +1,4 @@
+-import { EventTarget, Event, defineEventAttribute } from 'event-target-shim/index';
++import { EventTarget, Event, defineEventAttribute } from 'event-target-shim';
+ import { NativeModules } from 'react-native';
+ 
+ import { addListener, removeListener } from './EventEmitter';
+diff --git a/node_modules/react-native-webrtc/src/RTCTrackEvent.ts b/node_modules/react-native-webrtc/src/RTCTrackEvent.ts
+index ea9bea4..7995006 100644
+--- a/node_modules/react-native-webrtc/src/RTCTrackEvent.ts
++++ b/node_modules/react-native-webrtc/src/RTCTrackEvent.ts
+@@ -1,4 +1,4 @@
+-import { Event } from 'event-target-shim/index';
++import { Event } from 'event-target-shim';
+ 
+ import MediaStream from './MediaStream';
+ import type MediaStreamTrack from './MediaStreamTrack';

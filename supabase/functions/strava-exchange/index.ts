@@ -18,7 +18,7 @@ serve(async (req) => {
   }
 
   try {
-    const { code } = await req.json();
+    const { code, redirect_uri } = await req.json();
 
     if (!code) {
       return new Response(
@@ -27,25 +27,40 @@ serve(async (req) => {
       );
     }
 
+    console.log('Exchanging code for tokens with client_id:', STRAVA_CLIENT_ID);
+    console.log('Redirect URI:', redirect_uri);
+
     // Exchange code for tokens
+    const tokenRequestBody: any = {
+      client_id: STRAVA_CLIENT_ID,
+      client_secret: STRAVA_CLIENT_SECRET,
+      code,
+      grant_type: 'authorization_code',
+    };
+
+    // Include redirect_uri if provided
+    if (redirect_uri) {
+      tokenRequestBody.redirect_uri = redirect_uri;
+    }
+
     const response = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        client_id: STRAVA_CLIENT_ID,
-        client_secret: STRAVA_CLIENT_SECRET,
-        code,
-        grant_type: 'authorization_code',
-      }),
+      body: JSON.stringify(tokenRequestBody),
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Strava token exchange error:', error);
+      const errorText = await response.text();
+      console.error('Strava token exchange error:', errorText);
+      console.error('Response status:', response.status);
       return new Response(
-        JSON.stringify({ error: 'Failed to exchange code' }),
+        JSON.stringify({
+          error: 'Failed to exchange code',
+          details: errorText,
+          status: response.status
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

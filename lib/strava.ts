@@ -1,7 +1,7 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import type { Activity, StravaActivity, StravaAthlete } from '../types';
 import { supabase, updateProfile } from './supabase';
-import type { StravaActivity, StravaAthlete, Activity } from '../types';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -11,7 +11,7 @@ const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 
 // OAuth scopes we need
-const STRAVA_SCOPES = ['activity:read_all', 'profile:read_all'];
+const STRAVA_SCOPES = ['activity:read_all,read'];
 
 // Discovery document for Strava OAuth
 const discovery = {
@@ -53,8 +53,13 @@ export async function exchangeStravaCode(code: string): Promise<{
 }> {
   // In production, this should go through your backend to protect client_secret
   // For now, we'll call the Supabase Edge Function
+  const redirectUri = getStravaRedirectUri();
+
   const { data, error } = await supabase.functions.invoke('strava-exchange', {
-    body: { code },
+    body: {
+      code,
+      redirect_uri: redirectUri,
+    },
   });
 
   if (error) throw error;
@@ -302,10 +307,10 @@ export async function calculateRunnerPersona(userId: string) {
     preferred_run_time: preferredTime,
     heart_rate_zones: avgHR
       ? {
-          easy: [Math.round(avgHR * 0.6), Math.round(avgHR * 0.7)],
-          tempo: [Math.round(avgHR * 0.8), Math.round(avgHR * 0.9)],
-          threshold: [Math.round(avgHR * 0.9), Math.round(avgHR * 1.0)],
-        }
+        easy: [Math.round(avgHR * 0.6), Math.round(avgHR * 0.7)],
+        tempo: [Math.round(avgHR * 0.8), Math.round(avgHR * 0.9)],
+        threshold: [Math.round(avgHR * 0.9), Math.round(avgHR * 1.0)],
+      }
       : null,
     recent_accomplishments: recentAccomplishments,
     running_frequency: Math.round(runsPerWeek * 10) / 10,

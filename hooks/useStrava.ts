@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { Alert } from 'react-native';
 import { useAuth } from './useAuth';
 import { useRunStore } from '../stores/runStore';
 import {
@@ -25,6 +26,15 @@ export function useStrava() {
 
   // Handle OAuth response
   useEffect(() => {
+    if (response?.type === 'error') {
+      Alert.alert(
+        'Strava Connection Failed',
+        response.error?.message || 'Could not connect to Strava. Please try again.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     if (response?.type === 'success' && user) {
       const { code } = response.params;
 
@@ -43,10 +53,22 @@ export function useStrava() {
           setStravaConnected(true);
           await refreshProfile();
 
+          // Show success message
+          Alert.alert(
+            'Connected!',
+            `Connected to Strava as ${tokens.athlete.firstname} ${tokens.athlete.lastname}`,
+            [{ text: 'OK' }]
+          );
+
           // Sync activities after connecting
           await syncActivities();
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error connecting Strava:', error);
+          Alert.alert(
+            'Connection Failed',
+            error.message || 'Could not complete Strava connection. Please try again.',
+            [{ text: 'OK' }]
+          );
         }
       })();
     }
@@ -80,7 +102,7 @@ export function useStrava() {
 
   // Sync activities from Strava
   const syncActivities = useCallback(async () => {
-    if (!user || !stravaConnected) return;
+    if (!user || !stravaConnected) return 0;
 
     try {
       const newCount = await syncStravaActivities(user.id);
@@ -105,8 +127,11 @@ export function useStrava() {
       if (persona) {
         setRunnerPersona(persona);
       }
+
+      return newCount;
     } catch (error) {
       console.error('Error syncing activities:', error);
+      throw error;
     }
   }, [user, stravaConnected, setActivities, setRunnerPersona]);
 

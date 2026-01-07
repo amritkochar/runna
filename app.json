@@ -19,7 +19,8 @@
       "infoPlist": {
         "UIBackgroundModes": ["audio", "fetch"],
         "NSMicrophoneUsageDescription": "Runna needs microphone access for voice commands during your run",
-        "NSSpeechRecognitionUsageDescription": "Runna uses speech recognition to understand your voice commands"
+        "NSSpeechRecognitionUsageDescription": "Runna uses speech recognition to understand your voice commands",
+        "LSApplicationQueriesSchemes": ["spotify"]
       }
     },
     "android": {
@@ -43,7 +44,9 @@
         {
           "clientID": "44a6a121c0cd4b1eb15d513fb0802c1a",
           "scheme": "runna",
-          "host": "callback"
+          "host": "callback",
+          "tokenSwapURL": "https://urwowauebulqyvqmvnga.supabase.co/functions/v1/spotify-swap",
+          "tokenRefreshURL": "https://urwowauebulqyvqmvnga.supabase.co/functions/v1/spotify-refresh"
         }
       ],
       [

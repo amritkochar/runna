@@ -24,7 +24,7 @@ export default function SettingsScreen() {
     syncActivities,
     isAuthReady: stravaReady,
   } = useStrava();
-  const { spotifyConnected, disconnectSpotify } = useSpotify();
+  const { spotifyConnected, connectSpotify, disconnectSpotify } = useSpotify();
   const { voiceEnabled, setVoiceEnabled, spotifyIsPremium, activities } = useRunStore();
 
   const handleStravaConnect = async () => {
@@ -53,13 +53,32 @@ export default function SettingsScreen() {
         },
       ]);
     } else {
-      // Note: For Spotify, we use the native SDK authentication
-      // This would be triggered by the expo-spotify-sdk
-      Alert.alert(
-        'Connect Spotify',
-        'Spotify authentication will be handled by the Spotify app.',
-        [{ text: 'OK' }]
-      );
+      try {
+        setSyncing(true);
+        const result = await connectSpotify();
+
+        if (result.isPremium) {
+          Alert.alert(
+            'Connected!',
+            'Spotify Premium connected. You can now control playback during runs.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert(
+            'Connected',
+            'Spotify Free account connected. You can see what\'s playing, but playback control requires Spotify Premium.',
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (error: any) {
+        Alert.alert(
+          'Connection Failed',
+          error.message || 'Could not connect to Spotify. Please try again.',
+          [{ text: 'OK' }]
+        );
+      } finally {
+        setSyncing(false);
+      }
     }
   };
 

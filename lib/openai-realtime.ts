@@ -2,13 +2,13 @@
 // Uses WebRTC for low-latency voice communication
 
 import {
-  RTCPeerConnection,
-  RTCSessionDescription,
   mediaDevices,
   MediaStream,
+  RTCPeerConnection,
+  RTCSessionDescription,
 } from 'react-native-webrtc';
-import { supabase } from './supabase';
 import type { RunnerPersona, SpotifyTrack } from '../types';
+import { supabase } from './supabase';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
@@ -260,20 +260,40 @@ export class RealtimeClient {
       await this.peerConnection.setLocalDescription(offer);
 
       // Connect to OpenAI Realtime API
-      const response = await fetch(
-        'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${ephemeralToken}`,
-            'Content-Type': 'application/sdp',
-          },
-          body: offer.sdp,
-        }
-      );
+      // Use XMLHttpRequest directly to avoid issues with whatwg-fetch polyfill and non-JSON bodies
+      console.log('Connecting to OpenAI Realtime API...');
+      const response = await new Promise<{ ok: boolean; status: number; text: () => Promise<string> }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', 'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview');
+        xhr.setRequestHeader('Authorization', `Bearer ${ephemeralToken}`);
+        xhr.setRequestHeader('Content-Type', 'application/sdp');
+
+        xhr.onload = () => {
+          console.log('OpenAI Realtime API response status:', xhr.status);
+          resolve({
+            ok: xhr.status >= 200 && xhr.status < 300,
+            status: xhr.status,
+            text: () => Promise.resolve(xhr.responseText),
+          });
+        };
+
+        xhr.onerror = () => {
+          console.error('OpenAI Realtime API network error:', xhr.status, xhr.responseText);
+          reject(new TypeError('Network request failed'));
+        };
+
+        xhr.ontimeout = () => {
+          console.error('OpenAI Realtime API timeout');
+          reject(new TypeError('Network request timed out'));
+        };
+
+        xhr.send(offer.sdp);
+      });
 
       if (!response.ok) {
-        throw new Error(`Failed to connect: ${response.status}`);
+        const errorText = await response.text();
+        console.error('OpenAI Realtime API error details:', errorText);
+        throw new Error(`Failed to connect: ${response.status} ${errorText}`);
       }
 
       const answerSdp = await response.text();
