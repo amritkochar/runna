@@ -41,6 +41,18 @@ export default function RunScreen() {
   // Initialize GPS tracking
   useGPSTracking();
 
+  // Debug: Log GPS metrics updates
+  useEffect(() => {
+    console.log('📊 [UI] GPS Metrics updated:', {
+      distance: (gpsMetrics.totalDistance / 1000).toFixed(3) + ' km',
+      currentSpeed: gpsMetrics.currentSpeed.toFixed(1) + ' km/h',
+      currentPace: gpsMetrics.currentPace.toFixed(2) + ' min/km',
+      avgSpeed: gpsMetrics.averageSpeed.toFixed(1) + ' km/h',
+      avgPace: gpsMetrics.averagePace.toFixed(2) + ' min/km',
+      hasLocation: !!gpsMetrics.currentLocation,
+    });
+  }, [gpsMetrics]);
+
   // Timer effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -108,10 +120,13 @@ export default function RunScreen() {
   };
 
   const handleStartStop = () => {
+    console.log('🏃 [UI] Start/Stop button pressed - Current state:', isRunning);
     if (isRunning) {
+      console.log('⏹️ [UI] Ending run...');
       endRun();
       setDuration(0);
     } else {
+      console.log('▶️ [UI] Starting run...');
       startRun();
     }
   };
