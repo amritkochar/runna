@@ -370,19 +370,37 @@ export async function refreshSpotifyToken(refreshToken: string): Promise<{
     body: { refresh_token: refreshToken },
   });
 
-  if (error) throw error;
+  if (error) {
+    console.error('Spotify token refresh failed:', {
+      error,
+      message: error.message,
+      context: error.context || 'No additional context',
+    });
+    throw error;
+  }
+
+  if (!data || !data.access_token) {
+    throw new Error('Invalid token refresh response: missing access_token');
+  }
+
   return data;
 }
 
 // Get valid access token (refresh if needed)
 export async function getValidSpotifyToken(userId: string): Promise<string | null> {
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('spotify_access_token, spotify_refresh_token')
     .eq('id', userId)
     .single();
 
+  if (profileError) {
+    console.error('Error fetching profile for Spotify token:', profileError);
+    return null;
+  }
+
   if (!profile?.spotify_access_token) {
+    console.log('No Spotify access token found in profile');
     return null;
   }
 
@@ -390,27 +408,44 @@ export async function getValidSpotifyToken(userId: string): Promise<string | nul
   try {
     await getSpotifyUser(profile.spotify_access_token);
     return profile.spotify_access_token;
-  } catch {
-    // Token expired, try to refresh if we have a refresh token
-    if (profile.spotify_refresh_token) {
-      try {
-        const tokens = await refreshSpotifyToken(profile.spotify_refresh_token);
+  } catch (error: any) {
+    console.log('Spotify access token validation failed, attempting refresh...');
 
-        await updateProfile(userId, {
-          spotify_access_token: tokens.access_token,
-          ...(tokens.refresh_token && { spotify_refresh_token: tokens.refresh_token }),
-        });
-
-        return tokens.access_token;
-      } catch (refreshError) {
-        // Refresh failed, user needs to reconnect
-        console.error('Token refresh failed:', refreshError);
-        return null;
-      }
+    // Token expired or invalid, try to refresh if we have a refresh token
+    if (!profile.spotify_refresh_token) {
+      console.warn('No refresh token available (common on Android with native SDK). User needs to reconnect.');
+      // Clear invalid access token to avoid repeated refresh attempts
+      await updateProfile(userId, {
+        spotify_access_token: null,
+      });
+      return null;
     }
 
-    // No refresh token available (common on Android), user needs to reconnect
-    return null;
+    try {
+      console.log('Refreshing Spotify access token...');
+      const tokens = await refreshSpotifyToken(profile.spotify_refresh_token);
+
+      await updateProfile(userId, {
+        spotify_access_token: tokens.access_token,
+        ...(tokens.refresh_token && { spotify_refresh_token: tokens.refresh_token }),
+      });
+
+      console.log('Spotify token refreshed successfully');
+      return tokens.access_token;
+    } catch (refreshError: any) {
+      // Refresh failed, clear tokens and user needs to reconnect
+      console.error('Token refresh failed, clearing tokens. User needs to reconnect:', {
+        error: refreshError.message || refreshError,
+      });
+
+      // Clear invalid tokens to avoid repeated failed refresh attempts
+      await updateProfile(userId, {
+        spotify_access_token: null,
+        spotify_refresh_token: null,
+      });
+
+      return null;
+    }
   }
 }
 
