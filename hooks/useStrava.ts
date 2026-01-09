@@ -24,6 +24,67 @@ export function useStrava() {
 
   const { request, response, promptAsync } = useStravaAuth();
 
+  // Load activities from database on mount
+  useEffect(() => {
+    if (user && stravaConnected) {
+      console.log('📊 [Strava] Loading existing activities from database...');
+      loadActivitiesFromDatabase();
+    }
+  }, [user, stravaConnected]);
+
+  // Load activities from database
+  const loadActivitiesFromDatabase = async () => {
+    if (!user) return;
+
+    try {
+      const { supabase } = await import('../lib/supabase');
+
+      // Load activities
+      const { data, error } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: false })
+        .limit(100);
+
+      if (error) {
+        console.error('❌ [Strava] Error loading activities:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        console.log(`✅ [Strava] Loaded ${data.length} activities from database`);
+        setActivities(data);
+
+        // Load runner persona from profile first (it's already in the profile)
+        // If it doesn't exist, calculate it
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('runner_persona')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.runner_persona) {
+          console.log('✅ [Strava] Loaded runner persona from profile');
+          setRunnerPersona(profile.runner_persona);
+        } else {
+          console.log('🔄 [Strava] No runner persona found, calculating...');
+          const { calculateRunnerPersona } = await import('../lib/strava');
+          const persona = await calculateRunnerPersona(user.id);
+          if (persona) {
+            console.log('✅ [Strava] Calculated and saved runner persona');
+            setRunnerPersona(persona);
+          }
+        }
+      } else {
+        console.log('ℹ️ [Strava] No activities found in database');
+        setActivities([]);
+      }
+    } catch (error) {
+      console.error('❌ [Strava] Error loading activities:', error);
+    }
+  };
+
   // Handle OAuth response
   useEffect(() => {
     if (response?.type === 'error') {
@@ -105,8 +166,9 @@ export function useStrava() {
     if (!user || !stravaConnected) return 0;
 
     try {
+      console.log('🔄 [Strava] Starting sync...');
       const newCount = await syncStravaActivities(user.id);
-      console.log(`Synced ${newCount} new activities`);
+      console.log(`✅ [Strava] Synced ${newCount} new activities`);
 
       // Refresh activities from database
       const { data } = await import('../lib/supabase').then(({ supabase }) =>
@@ -119,13 +181,20 @@ export function useStrava() {
       );
 
       if (data) {
+        console.log(`📊 [Strava] Loaded ${data.length} total activities after sync`);
         setActivities(data);
       }
 
-      // Update runner persona
+      // Update runner persona after syncing new activities
+      console.log('🔄 [Strava] Updating runner persona...');
       const persona = await calculateRunnerPersona(user.id);
       if (persona) {
+        console.log('✅ [Strava] Runner persona updated');
         setRunnerPersona(persona);
+
+        // Also refresh the profile to keep it in sync
+        await refreshProfile();
+        console.log('✅ [Strava] Profile refreshed with updated runner persona');
       }
 
       return newCount;
