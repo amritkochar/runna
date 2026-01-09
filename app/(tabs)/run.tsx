@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { StyleSheet, TouchableOpacity, Animated, ScrollView } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRunStore } from '@/stores/runStore';
 import { useSpotify } from '@/hooks/useSpotify';
@@ -104,116 +104,144 @@ export default function RunScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Timer Display */}
-      <View style={styles.timerSection}>
-        <Text style={styles.timerLabel}>
-          {isRunning ? 'Running' : 'Ready to run'}
-        </Text>
-        <Text style={styles.timer}>{formatTime(duration)}</Text>
-      </View>
-
-      {/* Voice Companion Status */}
-      {voiceEnabled && isRunning && (
-        <View style={styles.voiceSection}>
-          <Animated.View
-            style={[
-              styles.voiceIndicator,
-              isListening && styles.voiceActive,
-              { transform: [{ scale: pulseAnim }] },
-            ]}
-          >
-            <FontAwesome
-              name={isListening ? 'microphone' : isSpeaking ? 'volume-up' : 'microphone-slash'}
-              size={24}
-              color={isListening ? '#34C759' : isSpeaking ? '#007AFF' : '#666'}
-            />
-          </Animated.View>
-          <Text style={styles.voiceStatus}>
-            {isListening
-              ? 'Listening...'
-              : isSpeaking
-              ? 'Speaking...'
-              : 'Tap mic to talk'}
-          </Text>
-          <TouchableOpacity
-            style={styles.voiceButton}
-            onPress={handleVoicePress}
-          >
-            <Text style={styles.voiceButtonText}>
-              {isListening ? 'Stop' : 'Talk to Runna'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Spotify Mini Player */}
-      {spotifyConnected && currentTrack && (
-        <View style={styles.playerSection}>
-          <View style={styles.trackInfo}>
-            <Text style={styles.trackName} numberOfLines={1}>
-              {currentTrack.name}
-            </Text>
-            <Text style={styles.trackArtist} numberOfLines={1}>
-              {currentTrack.artists.map((a) => a.name).join(', ')}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Timer Display */}
+        <View style={styles.timerSection}>
+          <View style={styles.statusBadge}>
+            <View style={[styles.statusDot, isRunning && styles.statusDotActive]} />
+            <Text style={styles.timerLabel}>
+              {isRunning ? 'Running' : 'Ready to run'}
             </Text>
           </View>
-          {spotifyIsPremium && (
-            <View style={styles.playerControls}>
-              <TouchableOpacity onPress={previousTrack} style={styles.controlButton}>
-                <FontAwesome name="step-backward" size={20} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={togglePlayback} style={styles.playButton}>
-                <FontAwesome
-                  name={isPlaying ? 'pause' : 'play'}
-                  size={24}
-                  color="#fff"
-                />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={nextTrack} style={styles.controlButton}>
-                <FontAwesome name="step-forward" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          )}
+          <Text style={styles.timer}>{formatTime(duration)}</Text>
         </View>
-      )}
 
-      {/* Start/Stop Button */}
+        {/* Voice Companion Status */}
+        {voiceEnabled && isRunning && (
+          <View style={styles.voiceSection}>
+            <Animated.View
+              style={[
+                styles.voiceIndicator,
+                isListening && styles.voiceActive,
+                { transform: [{ scale: pulseAnim }] },
+              ]}
+            >
+              <FontAwesome
+                name={isListening ? 'microphone' : isSpeaking ? 'volume-up' : 'microphone-slash'}
+                size={32}
+                color={isListening ? '#34C759' : isSpeaking ? '#FF7F30' : '#999'}
+              />
+            </Animated.View>
+            <Text style={styles.voiceStatus}>
+              {isListening
+                ? '🎤 Listening...'
+                : isSpeaking
+                ? '🔊 Speaking...'
+                : 'Tap to talk'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
+              onPress={handleVoicePress}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.voiceButtonText}>
+                {isListening ? 'Stop Listening' : 'Talk to Runna'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Spotify Mini Player */}
+        {spotifyConnected && currentTrack && (
+          <View style={styles.playerSection}>
+            <Text style={styles.playerTitle}>NOW PLAYING</Text>
+            <View style={styles.trackInfo}>
+              <Text style={styles.trackName} numberOfLines={1}>
+                {currentTrack.name}
+              </Text>
+              <Text style={styles.trackArtist} numberOfLines={1}>
+                {currentTrack.artists.map((a) => a.name).join(', ')}
+              </Text>
+            </View>
+            {spotifyIsPremium && (
+              <View style={styles.playerControls}>
+                <TouchableOpacity onPress={previousTrack} style={styles.controlButton}>
+                  <FontAwesome name="step-backward" size={24} color="#666" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={togglePlayback} style={styles.playButton}>
+                  <FontAwesome
+                    name={isPlaying ? 'pause' : 'play'}
+                    size={28}
+                    color="#fff"
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={nextTrack} style={styles.controlButton}>
+                  <FontAwesome name="step-forward" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Instructions */}
+        {!isRunning && (
+          <View style={styles.instructions}>
+            <Text style={styles.instructionTitle}>✨ During your run, you can:</Text>
+            <View style={styles.instructionList}>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionBullet}>💬</Text>
+                <Text style={styles.instruction}>Ask for jokes, news, or motivation</Text>
+              </View>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionBullet}>🎵</Text>
+                <Text style={styles.instruction}>Control your music with your voice</Text>
+              </View>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionBullet}>📝</Text>
+                <Text style={styles.instruction}>Save notes and reminders</Text>
+              </View>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionBullet}>📊</Text>
+                <Text style={styles.instruction}>Ask about your running stats</Text>
+              </View>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Fixed Bottom Controls */}
       <View style={styles.controlSection}>
-        <TouchableOpacity
-          style={[styles.mainButton, isRunning && styles.stopButton]}
-          onPress={handleStartStop}
-        >
-          <Text style={styles.mainButtonText}>
-            {isRunning ? 'End Run' : 'Start Run'}
-          </Text>
-        </TouchableOpacity>
-
         {/* Voice Toggle */}
         <TouchableOpacity
-          style={[styles.toggleButton, !voiceEnabled && styles.toggleDisabled]}
+          style={[styles.toggleButton, voiceEnabled && styles.toggleButtonActive]}
           onPress={() => setVoiceEnabled(!voiceEnabled)}
+          activeOpacity={0.8}
         >
           <FontAwesome
             name="microphone"
-            size={20}
-            color={voiceEnabled ? '#34C759' : '#666'}
+            size={18}
+            color={voiceEnabled ? '#34C759' : '#999'}
           />
-          <Text style={[styles.toggleText, !voiceEnabled && styles.toggleTextDisabled]}>
-            Voice {voiceEnabled ? 'On' : 'Off'}
+          <Text style={[styles.toggleText, voiceEnabled && styles.toggleTextActive]}>
+            Voice Companion {voiceEnabled ? 'On' : 'Off'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Start/Stop Button */}
+        <TouchableOpacity
+          style={[styles.mainButton, isRunning && styles.stopButton]}
+          onPress={handleStartStop}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.mainButtonText}>
+            {isRunning ? '⏹ End Run' : '▶ Start Run'}
           </Text>
         </TouchableOpacity>
       </View>
-
-      {/* Instructions */}
-      {!isRunning && (
-        <View style={styles.instructions}>
-          <Text style={styles.instructionTitle}>During your run, you can:</Text>
-          <Text style={styles.instruction}>Ask for jokes, news, or motivation</Text>
-          <Text style={styles.instruction}>Control your music with your voice</Text>
-          <Text style={styles.instruction}>Save notes and reminders</Text>
-          <Text style={styles.instruction}>Ask about your running stats</Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -221,147 +249,247 @@ export default function RunScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
     padding: 24,
+    paddingBottom: 180,
   },
   timerSection: {
     alignItems: 'center',
-    marginTop: 40,
+    marginTop: 20,
+    marginBottom: 40,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#999',
+  },
+  statusDotActive: {
+    backgroundColor: '#34C759',
   },
   timerLabel: {
-    fontSize: 16,
-    opacity: 0.6,
-    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    opacity: 0.7,
   },
   timer: {
-    fontSize: 72,
+    fontSize: 80,
     fontWeight: '200',
     fontVariant: ['tabular-nums'],
+    color: '#FF7F30',
   },
   voiceSection: {
     alignItems: 'center',
-    marginTop: 40,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#333',
+    marginBottom: 32,
+    padding: 28,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   voiceIndicator: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F5F5F5',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
   },
   voiceActive: {
-    backgroundColor: 'rgba(52, 199, 89, 0.2)',
+    backgroundColor: '#E8F8EE',
+    borderWidth: 3,
+    borderColor: '#34C759',
   },
   voiceStatus: {
-    fontSize: 15,
-    marginTop: 12,
-    opacity: 0.7,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 20,
   },
   voiceButton: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#007AFF',
-    borderRadius: 20,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    backgroundColor: '#FF7F30',
+    borderRadius: 24,
+    shadowColor: '#FF7F30',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  voiceButtonActive: {
+    backgroundColor: '#FF3B30',
   },
   voiceButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 15,
   },
   playerSection: {
-    marginTop: 32,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+    marginBottom: 32,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  trackInfo: {
+  playerTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    opacity: 0.5,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
     marginBottom: 12,
   },
+  trackInfo: {
+    marginBottom: 20,
+  },
   trackName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
   },
   trackArtist: {
     fontSize: 14,
     opacity: 0.6,
-    marginTop: 2,
   },
   playerControls: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 24,
+    gap: 32,
   },
   controlButton: {
     padding: 12,
   },
   playButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#007AFF',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FF7F30',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#FF7F30',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   controlSection: {
-    marginTop: 'auto',
-    gap: 16,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    paddingBottom: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5E5',
+    gap: 12,
   },
   mainButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: '#FF7F30',
     padding: 20,
     borderRadius: 16,
     alignItems: 'center',
+    shadowColor: '#FF7F30',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
   },
   stopButton: {
     backgroundColor: '#FF3B30',
+    shadowColor: '#FF3B30',
   },
   mainButtonText: {
     color: '#fff',
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   toggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#34C759',
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
   },
-  toggleDisabled: {
-    borderColor: '#666',
+  toggleButtonActive: {
+    borderColor: '#34C759',
+    backgroundColor: '#E8F8EE',
   },
   toggleText: {
-    color: '#34C759',
+    color: '#999',
     fontWeight: '600',
+    fontSize: 15,
   },
-  toggleTextDisabled: {
-    color: '#666',
+  toggleTextActive: {
+    color: '#34C759',
   },
   instructions: {
-    marginTop: 32,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   instructionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 12,
-    opacity: 0.8,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  instructionList: {
+    gap: 12,
+  },
+  instructionItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  instructionBullet: {
+    fontSize: 20,
+    width: 28,
   },
   instruction: {
-    fontSize: 14,
-    opacity: 0.6,
-    marginBottom: 6,
+    fontSize: 15,
+    lineHeight: 22,
+    flex: 1,
+    opacity: 0.7,
   },
 });
