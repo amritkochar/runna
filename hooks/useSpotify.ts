@@ -42,12 +42,18 @@ export function useSpotify() {
           setPlaybackState(state);
           pollErrorCount.current = 0; // Reset error count on success
         } else {
-          // No valid token, stop polling
-          if (pollInterval.current) {
-            clearInterval(pollInterval.current);
-            pollInterval.current = null;
+          // No valid token - increment error count but don't spam logs
+          pollErrorCount.current++;
+
+          // Stop polling after 3 consecutive failures to avoid wasting resources
+          // This can happen when session expires or Spotify needs reconnection
+          if (pollErrorCount.current >= 3) {
+            if (pollInterval.current) {
+              clearInterval(pollInterval.current);
+              pollInterval.current = null;
+            }
+            setSpotifyConnected(false, false);
           }
-          setSpotifyConnected(false, false);
         }
       } catch (error) {
         pollErrorCount.current++;
@@ -75,7 +81,7 @@ export function useSpotify() {
     // Poll immediately, then every 3 seconds
     await poll();
     pollInterval.current = setInterval(poll, 3000);
-  }, [user, spotifyConnected, setPlaybackState]);
+  }, [user, spotifyConnected, setPlaybackState, setSpotifyConnected]);
 
   const stopPolling = useCallback(() => {
     if (pollInterval.current) {
