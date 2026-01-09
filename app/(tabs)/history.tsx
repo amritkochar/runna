@@ -71,7 +71,7 @@ export default function HistoryScreen() {
           </Text>
           <Text style={styles.statLabel}>duration</Text>
         </View>
-        {item.average_heartrate && (
+        {item.average_heartrate && item.average_heartrate > 0 && (
           <View style={styles.statItem}>
             <Text style={styles.statValue}>
               {Math.round(item.average_heartrate)}
@@ -83,13 +83,17 @@ export default function HistoryScreen() {
 
       {item.elevation_gain && item.elevation_gain > 0 && (
         <View style={styles.extraStats}>
-          <Text style={styles.extraStat}>
-            Elevation: +{Math.round(item.elevation_gain)}m
-          </Text>
-          {item.calories && (
-            <Text style={styles.extraStat}>
-              Calories: {Math.round(item.calories)}
+          <View style={styles.elevationBadge}>
+            <Text style={styles.elevationText}>
+              ⬆ {Math.round(item.elevation_gain)}m
             </Text>
+          </View>
+          {item.calories && item.calories > 0 && (
+            <View style={styles.caloriesBadge}>
+              <Text style={styles.caloriesText}>
+                🔥 {Math.round(item.calories)} cal
+              </Text>
+            </View>
           )}
         </View>
       )}
@@ -99,6 +103,7 @@ export default function HistoryScreen() {
   if (!stravaConnected) {
     return (
       <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>🏃</Text>
         <Text style={styles.emptyTitle}>Connect Strava</Text>
         <Text style={styles.emptyText}>
           Connect your Strava account in Settings to see your run history.
@@ -110,6 +115,7 @@ export default function HistoryScreen() {
   if (activities.length === 0) {
     return (
       <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>📊</Text>
         <Text style={styles.emptyTitle}>No runs yet</Text>
         <Text style={styles.emptyText}>
           Your Strava runs will appear here once synced.
@@ -128,96 +134,143 @@ export default function HistoryScreen() {
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#FF7F30"
+        />
       }
       ItemSeparatorComponent={() => <View style={styles.separator} />}
+      showsVerticalScrollIndicator={false}
     />
   );
 }
 
 const styles = StyleSheet.create({
   list: {
-    padding: 16,
+    padding: 20,
+    paddingBottom: 40,
   },
   activityCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   activityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 18,
   },
   activityName: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     flex: 1,
     marginRight: 12,
   },
   activityDate: {
-    fontSize: 13,
-    opacity: 0.6,
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.5,
+    textTransform: 'uppercase',
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 20,
   },
   statItem: {
     minWidth: 70,
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FF7F30',
   },
   statLabel: {
-    fontSize: 12,
-    opacity: 0.6,
-    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '600',
+    opacity: 0.5,
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   extraStats: {
     flexDirection: 'row',
-    gap: 16,
-    marginTop: 12,
-    paddingTop: 12,
+    gap: 10,
+    marginTop: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#F0F0F0',
   },
-  extraStat: {
-    fontSize: 13,
-    opacity: 0.6,
+  elevationBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#FFF4ED',
+  },
+  elevationText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF7F30',
+  },
+  caloriesBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#FFF4ED',
+  },
+  caloriesText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF7F30',
   },
   separator: {
-    height: 12,
+    height: 16,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 32,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 15,
     opacity: 0.6,
     textAlign: 'center',
+    lineHeight: 22,
   },
   syncButton: {
     marginTop: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#007AFF',
-    borderRadius: 20,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    backgroundColor: '#FF7F30',
+    borderRadius: 24,
+    shadowColor: '#FF7F30',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   syncButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });

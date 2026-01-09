@@ -107,151 +107,190 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Account Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.label}>Email</Text>
-            <Text style={styles.value}>{user?.email}</Text>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Account Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ACCOUNT</Text>
+          <View style={styles.card}>
+            <View style={styles.accountHeader}>
+              <View style={styles.avatarCircle}>
+                <FontAwesome name="user" size={24} color="#FF7F30" />
+              </View>
+              <View style={styles.accountInfo}>
+                <Text style={styles.accountLabel}>Email</Text>
+                <Text style={styles.accountValue}>{user?.email}</Text>
+              </View>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Connections Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Connections</Text>
+        {/* Connections Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>CONNECTIONS</Text>
 
-        {/* Strava */}
-        <TouchableOpacity
-          style={styles.connectionCard}
-          onPress={handleStravaConnect}
-          disabled={!stravaReady}
-        >
-          <View style={styles.connectionInfo}>
-            <View style={styles.connectionIcon}>
-              <FontAwesome name="bicycle" size={20} color="#FC4C02" />
-            </View>
-            <View>
-              <Text style={styles.connectionName}>Strava</Text>
-              <Text style={styles.connectionStatus}>
-                {stravaConnected ? 'Connected' : 'Not connected'}
-              </Text>
-            </View>
-          </View>
-          <View
-            style={[
-              styles.connectionBadge,
-              stravaConnected ? styles.connected : styles.disconnected,
-            ]}
-          >
-            <Text style={styles.connectionBadgeText}>
-              {stravaConnected ? 'Disconnect' : 'Connect'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Sync Button */}
-        {stravaConnected && (
+          {/* Strava */}
           <TouchableOpacity
-            style={styles.syncButton}
-            onPress={handleSync}
-            disabled={syncing}
+            style={styles.connectionCard}
+            onPress={handleStravaConnect}
+            disabled={!stravaReady}
+            activeOpacity={0.7}
           >
-            {syncing ? (
-              <ActivityIndicator color="#007AFF" />
-            ) : (
-              <>
-                <FontAwesome name="refresh" size={16} color="#007AFF" />
-                <Text style={styles.syncButtonText}>
-                  Sync Activities ({activities.length} synced)
+            <View style={styles.connectionInfo}>
+              <View style={styles.connectionIconStrava}>
+                <FontAwesome name="bicycle" size={22} color="#FC4C02" />
+              </View>
+              <View style={styles.connectionDetails}>
+                <Text style={styles.connectionName}>Strava</Text>
+                <Text style={styles.connectionStatus}>
+                  {stravaConnected ? '✓ Connected' : 'Not connected'}
                 </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Spotify */}
-        <TouchableOpacity
-          style={styles.connectionCard}
-          onPress={handleSpotifyConnect}
-        >
-          <View style={styles.connectionInfo}>
-            <View style={[styles.connectionIcon, { backgroundColor: '#1DB954' }]}>
-              <FontAwesome name="spotify" size={20} color="#fff" />
-            </View>
-            <View>
-              <Text style={styles.connectionName}>Spotify</Text>
-              <Text style={styles.connectionStatus}>
-                {spotifyConnected
-                  ? spotifyIsPremium
-                    ? 'Premium'
-                    : 'Free (limited features)'
-                  : 'Not connected'}
-              </Text>
-            </View>
-          </View>
-          <View
-            style={[
-              styles.connectionBadge,
-              spotifyConnected ? styles.connected : styles.disconnected,
-            ]}
-          >
-            <Text style={styles.connectionBadgeText}>
-              {spotifyConnected ? 'Disconnect' : 'Connect'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Voice Companion Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Voice Companion</Text>
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => setVoiceEnabled(!voiceEnabled)}
-        >
-          <View style={styles.row}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.label}>Voice Assistant</Text>
-              <Text style={styles.sublabel}>
-                Talk to Runna during your runs
-              </Text>
+              </View>
             </View>
             <View
               style={[
-                styles.toggle,
-                voiceEnabled ? styles.toggleOn : styles.toggleOff,
+                styles.connectionBadge,
+                stravaConnected ? styles.badgeDisconnect : styles.badgeConnect,
               ]}
             >
+              <Text
+                style={[
+                  styles.connectionBadgeText,
+                  stravaConnected ? styles.badgeDisconnectText : styles.badgeConnectText,
+                ]}
+              >
+                {stravaConnected ? 'Disconnect' : 'Connect'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Sync Button */}
+          {stravaConnected && (
+            <TouchableOpacity
+              style={styles.syncButton}
+              onPress={handleSync}
+              disabled={syncing}
+              activeOpacity={0.7}
+            >
+              {syncing ? (
+                <ActivityIndicator color="#FF7F30" />
+              ) : (
+                <>
+                  <FontAwesome name="refresh" size={16} color="#FF7F30" />
+                  <Text style={styles.syncButtonText}>
+                    Sync Activities ({activities.length} synced)
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Spotify */}
+          <TouchableOpacity
+            style={styles.connectionCard}
+            onPress={handleSpotifyConnect}
+            activeOpacity={0.7}
+          >
+            <View style={styles.connectionInfo}>
+              <View style={styles.connectionIconSpotify}>
+                <FontAwesome name="spotify" size={22} color="#1DB954" />
+              </View>
+              <View style={styles.connectionDetails}>
+                <Text style={styles.connectionName}>Spotify</Text>
+                <Text style={styles.connectionStatus}>
+                  {spotifyConnected
+                    ? spotifyIsPremium
+                      ? '✓ Premium'
+                      : '✓ Free (limited features)'
+                    : 'Not connected'}
+                </Text>
+              </View>
+            </View>
+            <View
+              style={[
+                styles.connectionBadge,
+                spotifyConnected ? styles.badgeDisconnect : styles.badgeConnect,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.connectionBadgeText,
+                  spotifyConnected ? styles.badgeDisconnectText : styles.badgeConnectText,
+                ]}
+              >
+                {spotifyConnected ? 'Disconnect' : 'Connect'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Voice Companion Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>VOICE COMPANION</Text>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => setVoiceEnabled(!voiceEnabled)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingHeader}>
+                  <FontAwesome
+                    name="microphone"
+                    size={18}
+                    color={voiceEnabled ? '#34C759' : '#999'}
+                    style={styles.settingIcon}
+                  />
+                  <Text style={styles.settingLabel}>Voice Assistant</Text>
+                </View>
+                <Text style={styles.settingSubLabel}>
+                  Talk to Runna during your runs
+                </Text>
+              </View>
               <View
                 style={[
-                  styles.toggleKnob,
-                  voiceEnabled ? styles.knobOn : styles.knobOff,
+                  styles.toggle,
+                  voiceEnabled ? styles.toggleOn : styles.toggleOff,
                 ]}
-              />
+              >
+                <View
+                  style={[
+                    styles.toggleKnob,
+                    voiceEnabled ? styles.knobOn : styles.knobOff,
+                  ]}
+                />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* About Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ABOUT</Text>
+          <View style={styles.card}>
+            <View style={styles.aboutRow}>
+              <FontAwesome name="info-circle" size={18} color="#FF7F30" style={styles.aboutIcon} />
+              <Text style={styles.aboutLabel}>Version</Text>
+              <Text style={styles.aboutValue}>1.0.0</Text>
             </View>
           </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* About Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.label}>Version</Text>
-            <Text style={styles.value}>1.0.0</Text>
-          </View>
         </View>
-      </View>
 
-      {/* Sign Out */}
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        {/* Sign Out */}
+        <TouchableOpacity
+          style={styles.signOutButton}
+          onPress={handleSignOut}
+          activeOpacity={0.8}
+        >
+          <FontAwesome name="sign-out" size={18} color="#FF3B30" />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -259,109 +298,180 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
-    padding: 16,
+    padding: 20,
     paddingBottom: 48,
   },
   section: {
     marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    opacity: 0.6,
+    fontSize: 11,
+    fontWeight: '700',
+    opacity: 0.5,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     marginBottom: 12,
-    marginLeft: 4,
   },
   card: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  row: {
+  accountHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 16,
   },
-  label: {
-    fontSize: 16,
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF4ED',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sublabel: {
-    fontSize: 13,
-    opacity: 0.6,
-    marginTop: 2,
-  },
-  value: {
-    fontSize: 16,
-    opacity: 0.6,
-  },
-  settingInfo: {
+  accountInfo: {
     flex: 1,
+  },
+  accountLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.5,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  accountValue: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   connectionCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 8,
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   connectionInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
+    flex: 1,
   },
-  connectionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(252, 76, 2, 0.1)',
+  connectionIconStrava: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF4ED',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  connectionIconSpotify: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E8F8EE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  connectionDetails: {
+    flex: 1,
+  },
   connectionName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   connectionStatus: {
     fontSize: 13,
+    fontWeight: '500',
     opacity: 0.6,
-    marginTop: 2,
   },
   connectionBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
   },
-  connected: {
-    backgroundColor: 'rgba(255, 69, 58, 0.2)',
+  badgeConnect: {
+    backgroundColor: '#FFF4ED',
   },
-  disconnected: {
-    backgroundColor: 'rgba(0, 122, 255, 0.2)',
+  badgeDisconnect: {
+    backgroundColor: '#FFE8E6',
   },
   connectionBadgeText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '700',
+  },
+  badgeConnectText: {
+    color: '#FF7F30',
+  },
+  badgeDisconnectText: {
+    color: '#FF3B30',
   },
   syncButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    marginBottom: 8,
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FF7F30',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
   },
   syncButtonText: {
-    color: '#007AFF',
+    color: '#FF7F30',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  settingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  settingIcon: {
+    marginRight: 10,
+  },
+  settingLabel: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  settingSubLabel: {
+    fontSize: 13,
     fontWeight: '500',
+    opacity: 0.6,
+    marginTop: 2,
+    marginLeft: 28,
   },
   toggle: {
     width: 51,
@@ -373,13 +483,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#34C759',
   },
   toggleOff: {
-    backgroundColor: '#333',
+    backgroundColor: '#E5E5E5',
   },
   toggleKnob: {
     width: 27,
     height: 27,
     borderRadius: 14,
     backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
   },
   knobOn: {
     marginLeft: 'auto',
@@ -387,16 +502,38 @@ const styles = StyleSheet.create({
   knobOff: {
     marginLeft: 0,
   },
-  signOutButton: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FF3B30',
+  aboutRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+  },
+  aboutIcon: {
+    marginRight: 12,
+  },
+  aboutLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  aboutValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FF7F30',
+  },
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FF3B30',
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
   },
   signOutText: {
     color: '#FF3B30',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });
