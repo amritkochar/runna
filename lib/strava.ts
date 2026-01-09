@@ -72,42 +72,75 @@ export async function refreshStravaToken(refreshToken: string): Promise<{
   refresh_token: string;
   expires_at: number;
 }> {
+  console.log('🔄 [Strava] Refreshing token...');
+
   const { data, error } = await supabase.functions.invoke('strava-refresh', {
     body: { refresh_token: refreshToken },
   });
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ [Strava] Token refresh error:', error);
+    throw new Error(`Failed to refresh Strava token: ${error.message}`);
+  }
+
+  if (!data) {
+    console.error('❌ [Strava] No data returned from token refresh');
+    throw new Error('No data returned from token refresh');
+  }
+
+  console.log('✅ [Strava] Token refreshed successfully');
   return data;
 }
 
 // Get valid access token (refresh if needed)
 export async function getValidStravaToken(userId: string): Promise<string | null> {
-  const { data: profile } = await supabase
+  console.log('🔑 [Strava] Getting valid token for user:', userId);
+
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('strava_access_token, strava_refresh_token, strava_token_expires_at')
     .eq('id', userId)
     .single();
 
+  if (profileError) {
+    console.error('❌ [Strava] Error fetching profile:', profileError);
+    throw new Error(`Failed to fetch profile: ${profileError.message}`);
+  }
+
   if (!profile?.strava_access_token || !profile?.strava_refresh_token) {
+    console.warn('⚠️ [Strava] No Strava credentials found');
     return null;
   }
 
   const expiresAt = new Date(profile.strava_token_expires_at).getTime();
   const now = Date.now();
 
+  console.log('⏰ [Strava] Token expires at:', new Date(expiresAt).toISOString());
+  console.log('⏰ [Strava] Current time:', new Date(now).toISOString());
+  console.log('⏰ [Strava] Time until expiry (minutes):', Math.round((expiresAt - now) / 60000));
+
   // Refresh if token expires in less than 5 minutes
   if (expiresAt - now < 5 * 60 * 1000) {
-    const tokens = await refreshStravaToken(profile.strava_refresh_token);
+    console.log('🔄 [Strava] Token expired or expiring soon, refreshing...');
 
-    await updateProfile(userId, {
-      strava_access_token: tokens.access_token,
-      strava_refresh_token: tokens.refresh_token,
-      strava_token_expires_at: new Date(tokens.expires_at * 1000).toISOString(),
-    });
+    try {
+      const tokens = await refreshStravaToken(profile.strava_refresh_token);
 
-    return tokens.access_token;
+      await updateProfile(userId, {
+        strava_access_token: tokens.access_token,
+        strava_refresh_token: tokens.refresh_token,
+        strava_token_expires_at: new Date(tokens.expires_at * 1000).toISOString(),
+      });
+
+      console.log('✅ [Strava] Token refreshed and profile updated');
+      return tokens.access_token;
+    } catch (error: any) {
+      console.error('❌ [Strava] Failed to refresh token:', error);
+      throw new Error(`Token refresh failed: ${error.message}. You may need to reconnect your Strava account.`);
+    }
   }
 
+  console.log('✅ [Strava] Using existing token');
   return profile.strava_access_token;
 }
 
@@ -168,10 +201,23 @@ export async function getStravaActivity(
 
 // Sync activities to Supabase
 export async function syncStravaActivities(userId: string): Promise<number> {
-  const accessToken = await getValidStravaToken(userId);
-  if (!accessToken) {
-    throw new Error('No valid Strava token');
+  console.log('🔄 [Strava] Starting activity sync for user:', userId);
+
+  let accessToken: string | null;
+  try {
+    accessToken = await getValidStravaToken(userId);
+  } catch (error: any) {
+    console.error('❌ [Strava] Failed to get valid token:', error);
+    throw error;
   }
+
+  if (!accessToken) {
+    const error = new Error('No valid Strava token. Please reconnect your Strava account.');
+    console.error('❌ [Strava]', error.message);
+    throw error;
+  }
+
+  console.log('✅ [Strava] Got valid access token');
 
   // Get the most recent activity we have
   const { data: latestActivity } = await supabase
@@ -182,12 +228,24 @@ export async function syncStravaActivities(userId: string): Promise<number> {
     .limit(1)
     .single();
 
+  console.log('📊 [Strava] Latest activity date:', latestActivity?.start_date || 'None');
+
   let page = 1;
   let newActivitiesCount = 0;
   let hasMore = true;
 
   while (hasMore) {
-    const activities = await getStravaActivities(accessToken, page);
+    console.log(`📥 [Strava] Fetching page ${page}...`);
+
+    let activities;
+    try {
+      activities = await getStravaActivities(accessToken, page);
+    } catch (error: any) {
+      console.error(`❌ [Strava] Error fetching activities (page ${page}):`, error);
+      throw new Error(`Failed to fetch activities from Strava: ${error.message}`);
+    }
+
+    console.log(`📥 [Strava] Retrieved ${activities.length} activities from page ${page}`);
 
     if (activities.length === 0) {
       hasMore = false;
@@ -199,12 +257,15 @@ export async function syncStravaActivities(userId: string): Promise<number> {
       (a) => a.type === 'Run' || a.sport_type === 'Run'
     );
 
+    console.log(`🏃 [Strava] Found ${runActivities.length} running activities in page ${page}`);
+
     for (const activity of runActivities) {
       // Skip if we've already synced this activity
       if (
         latestActivity &&
         new Date(activity.start_date) <= new Date(latestActivity.start_date)
       ) {
+        console.log('✋ [Strava] Reached already-synced activities, stopping');
         hasMore = false;
         break;
       }
@@ -232,8 +293,11 @@ export async function syncStravaActivities(userId: string): Promise<number> {
         .from('activities')
         .upsert(activityRecord, { onConflict: 'strava_activity_id' });
 
-      if (!error) {
+      if (error) {
+        console.error(`❌ [Strava] Error inserting activity ${activity.id}:`, error);
+      } else {
         newActivitiesCount++;
+        console.log(`✅ [Strava] Synced activity: ${activity.name}`);
       }
     }
 
@@ -244,6 +308,7 @@ export async function syncStravaActivities(userId: string): Promise<number> {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
+  console.log(`✅ [Strava] Sync complete! Synced ${newActivitiesCount} new activities`);
   return newActivitiesCount;
 }
 

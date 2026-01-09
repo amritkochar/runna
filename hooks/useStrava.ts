@@ -129,8 +129,28 @@ export function useStrava() {
       }
 
       return newCount;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error syncing activities:', error);
+
+      // Show user-friendly error message
+      let errorMessage = 'Failed to sync activities. ';
+
+      if (error.message?.includes('Token refresh failed')) {
+        errorMessage += 'Your Strava connection has expired. Please reconnect your Strava account in Settings.';
+      } else if (error.message?.includes('Server configuration error')) {
+        errorMessage += 'Server configuration issue. Please contact support.';
+      } else if (error.message?.includes('No valid Strava token')) {
+        errorMessage += 'Please reconnect your Strava account in Settings.';
+      } else {
+        errorMessage += error.message || 'Please try again later.';
+      }
+
+      Alert.alert(
+        'Sync Failed',
+        errorMessage,
+        [{ text: 'OK' }]
+      );
+
       throw error;
     }
   }, [user, stravaConnected, setActivities, setRunnerPersona]);
