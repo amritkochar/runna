@@ -87,27 +87,27 @@ export default function HistoryScreen() {
           </Text>
           <Text style={styles.statLabel}>duration</Text>
         </View>
-        {item.average_heartrate && item.average_heartrate > 0 && (
+        {(item.average_heartrate ?? 0) > 0 && (
           <View style={styles.statItem}>
             <Text style={styles.statValue}>
-              {Math.round(item.average_heartrate)}
+              {Math.round(item.average_heartrate!)}
             </Text>
             <Text style={styles.statLabel}>avg bpm</Text>
           </View>
         )}
       </View>
 
-      {item.elevation_gain && item.elevation_gain > 0 && (
+      {(item.elevation_gain ?? 0) > 0 && (
         <View style={styles.extraStats}>
           <View style={styles.elevationBadge}>
             <Text style={styles.elevationText}>
-              ⬆ {Math.round(item.elevation_gain)}m
+              ⬆ {Math.round(item.elevation_gain!)}m
             </Text>
           </View>
-          {item.calories && item.calories > 0 && (
+          {(item.calories ?? 0) > 0 && (
             <View style={styles.caloriesBadge}>
               <Text style={styles.caloriesText}>
-                🔥 {Math.round(item.calories)} cal
+                🔥 {Math.round(item.calories!)} cal
               </Text>
             </View>
           )}
