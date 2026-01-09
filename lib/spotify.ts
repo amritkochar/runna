@@ -388,6 +388,15 @@ export async function refreshSpotifyToken(refreshToken: string): Promise<{
 
 // Get valid access token (refresh if needed)
 export async function getValidSpotifyToken(userId: string): Promise<string | null> {
+  // First verify we have a valid Supabase session
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    // No valid session - don't spam logs, just return null
+    // The auth system will handle re-authentication
+    return null;
+  }
+
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('spotify_access_token, spotify_refresh_token')
@@ -395,12 +404,27 @@ export async function getValidSpotifyToken(userId: string): Promise<string | nul
     .single();
 
   if (profileError) {
-    console.error('Error fetching profile for Spotify token:', profileError);
+    // Check if it's an auth-related error (PGRST301 is "JWT expired" or similar)
+    const isAuthError = profileError.code === 'PGRST301' ||
+                        profileError.message?.includes('JWT') ||
+                        profileError.message?.includes('session');
+
+    if (isAuthError) {
+      // Auth error - don't spam logs, the session has expired
+      return null;
+    }
+
+    // Other error - log it once but don't throw
+    console.error('Error fetching profile for Spotify token:', {
+      code: profileError.code,
+      message: profileError.message,
+      details: profileError.details,
+    });
     return null;
   }
 
   if (!profile?.spotify_access_token) {
-    console.log('No Spotify access token found in profile');
+    // No token stored - this is normal if user hasn't connected Spotify
     return null;
   }
 
@@ -409,20 +433,21 @@ export async function getValidSpotifyToken(userId: string): Promise<string | nul
     await getSpotifyUser(profile.spotify_access_token);
     return profile.spotify_access_token;
   } catch (error: any) {
-    console.log('Spotify access token validation failed, attempting refresh...');
-
     // Token expired or invalid, try to refresh if we have a refresh token
     if (!profile.spotify_refresh_token) {
-      console.warn('No refresh token available (common on Android with native SDK). User needs to reconnect.');
-      // Clear invalid access token to avoid repeated refresh attempts
-      await updateProfile(userId, {
-        spotify_access_token: null,
-      });
+      // No refresh token - clear the invalid access token silently
+      // This is common on Android with native SDK
+      try {
+        await updateProfile(userId, {
+          spotify_access_token: null,
+        });
+      } catch {
+        // Ignore update errors (might be due to session issues)
+      }
       return null;
     }
 
     try {
-      console.log('Refreshing Spotify access token...');
       const tokens = await refreshSpotifyToken(profile.spotify_refresh_token);
 
       await updateProfile(userId, {
@@ -430,19 +455,22 @@ export async function getValidSpotifyToken(userId: string): Promise<string | nul
         ...(tokens.refresh_token && { spotify_refresh_token: tokens.refresh_token }),
       });
 
-      console.log('Spotify token refreshed successfully');
       return tokens.access_token;
     } catch (refreshError: any) {
-      // Refresh failed, clear tokens and user needs to reconnect
-      console.error('Token refresh failed, clearing tokens. User needs to reconnect:', {
-        error: refreshError.message || refreshError,
+      // Refresh failed - log once and clear tokens
+      console.error('Spotify token refresh failed, clearing tokens:', {
+        error: refreshError.message || String(refreshError),
       });
 
       // Clear invalid tokens to avoid repeated failed refresh attempts
-      await updateProfile(userId, {
-        spotify_access_token: null,
-        spotify_refresh_token: null,
-      });
+      try {
+        await updateProfile(userId, {
+          spotify_access_token: null,
+          spotify_refresh_token: null,
+        });
+      } catch {
+        // Ignore update errors (might be due to session issues)
+      }
 
       return null;
     }
