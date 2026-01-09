@@ -131,7 +131,7 @@ export default function HistoryScreen() {
     <FlatList
       data={activities}
       renderItem={renderActivity}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => String(item.id)}
       contentContainerStyle={styles.list}
       refreshControl={
         <RefreshControl
