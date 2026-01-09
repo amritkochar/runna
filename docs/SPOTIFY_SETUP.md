@@ -55,6 +55,17 @@ supabase functions deploy spotify-refresh
 2. Disconnect Spotify
 3. Reconnect Spotify to get fresh tokens
 
+### Error: "Error fetching profile for Spotify token" (repeated in logs)
+
+**Cause:** Supabase session expired while app was running.
+
+**Solution:** This is now handled gracefully - the app will:
+- Stop polling automatically after 3 failed attempts
+- Clear the Spotify connection status
+- Not spam error logs when session expires
+
+Simply restart the app or the session will auto-refresh if enabled.
+
 ### No Refresh Token (Android)
 
 **Note:** The Spotify native SDK on Android sometimes doesn't provide refresh tokens. This is expected behavior.
