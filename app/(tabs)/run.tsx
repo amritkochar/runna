@@ -4,6 +4,7 @@ import { Text, View } from '@/components/Themed';
 import { useRunStore } from '@/stores/runStore';
 import { useSpotify } from '@/hooks/useSpotify';
 import { useVoiceCompanion } from '@/hooks/useVoiceCompanion';
+import { useGPSTracking } from '@/hooks/useGPSTracking';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 export default function RunScreen() {
@@ -14,6 +15,9 @@ export default function RunScreen() {
     voiceEnabled,
     isListening,
     isSpeaking,
+    gpsMetrics,
+    locationPermission,
+    gpsError,
     startRun,
     endRun,
     updateRunStats,
@@ -33,6 +37,21 @@ export default function RunScreen() {
 
   const [duration, setDuration] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Initialize GPS tracking
+  useGPSTracking();
+
+  // Debug: Log GPS metrics updates
+  useEffect(() => {
+    console.log('📊 [UI] GPS Metrics updated:', {
+      distance: (gpsMetrics.totalDistance / 1000).toFixed(3) + ' km',
+      currentSpeed: gpsMetrics.currentSpeed.toFixed(1) + ' km/h',
+      currentPace: gpsMetrics.currentPace.toFixed(2) + ' min/km',
+      avgSpeed: gpsMetrics.averageSpeed.toFixed(1) + ' km/h',
+      avgPace: gpsMetrics.averagePace.toFixed(2) + ' min/km',
+      hasLocation: !!gpsMetrics.currentLocation,
+    });
+  }, [gpsMetrics]);
 
   // Timer effect
   useEffect(() => {
@@ -84,11 +103,30 @@ export default function RunScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const formatDistance = (meters: number) => {
+    const km = meters / 1000;
+    return km.toFixed(2);
+  };
+
+  const formatPace = (minPerKm: number) => {
+    if (minPerKm === 0 || !isFinite(minPerKm)) return '--:--';
+    const mins = Math.floor(minPerKm);
+    const secs = Math.floor((minPerKm - mins) * 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatSpeed = (kmh: number) => {
+    return kmh.toFixed(1);
+  };
+
   const handleStartStop = () => {
+    console.log('🏃 [UI] Start/Stop button pressed - Current state:', isRunning);
     if (isRunning) {
+      console.log('⏹️ [UI] Ending run...');
       endRun();
       setDuration(0);
     } else {
+      console.log('▶️ [UI] Starting run...');
       startRun();
     }
   };
@@ -119,6 +157,46 @@ export default function RunScreen() {
           </View>
           <Text style={styles.timer}>{formatTime(duration)}</Text>
         </View>
+
+        {/* GPS Metrics */}
+        {isRunning && (
+          <View style={styles.metricsSection}>
+            {/* Distance */}
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Distance</Text>
+              <Text style={styles.metricValue}>
+                {formatDistance(gpsMetrics.totalDistance)}
+              </Text>
+              <Text style={styles.metricUnit}>km</Text>
+            </View>
+
+            {/* Current Pace */}
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Pace</Text>
+              <Text style={styles.metricValue}>
+                {formatPace(gpsMetrics.currentPace)}
+              </Text>
+              <Text style={styles.metricUnit}>min/km</Text>
+            </View>
+
+            {/* Speed */}
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Speed</Text>
+              <Text style={styles.metricValue}>
+                {formatSpeed(gpsMetrics.currentSpeed)}
+              </Text>
+              <Text style={styles.metricUnit}>km/h</Text>
+            </View>
+          </View>
+        )}
+
+        {/* GPS Error Alert */}
+        {gpsError && (
+          <View style={styles.errorSection}>
+            <FontAwesome name="exclamation-triangle" size={16} color="#FF9500" />
+            <Text style={styles.errorText}>{gpsError}</Text>
+          </View>
+        )}
 
         {/* Voice Companion Status */}
         {voiceEnabled && isRunning && (
@@ -192,6 +270,10 @@ export default function RunScreen() {
           <View style={styles.instructions}>
             <Text style={styles.instructionTitle}>✨ During your run, you can:</Text>
             <View style={styles.instructionList}>
+              <View style={styles.instructionItem}>
+                <Text style={styles.instructionBullet}>📍</Text>
+                <Text style={styles.instruction}>GPS tracks your distance, pace, and speed</Text>
+              </View>
               <View style={styles.instructionItem}>
                 <Text style={styles.instructionBullet}>💬</Text>
                 <Text style={styles.instruction}>Ask for jokes, news, or motivation</Text>
@@ -293,6 +375,62 @@ const styles = StyleSheet.create({
     fontWeight: '200',
     fontVariant: ['tabular-nums'],
     color: '#FF7F30',
+  },
+  metricsSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 32,
+  },
+  metricCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    opacity: 0.5,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  metricValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    color: '#FF7F30',
+  },
+  metricUnit: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginTop: 4,
+  },
+  errorSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    borderWidth: 1.5,
+    borderColor: '#FF9500',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF9500',
   },
   voiceSection: {
     alignItems: 'center',

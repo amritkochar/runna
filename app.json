@@ -20,6 +20,7 @@
         "UIBackgroundModes": ["audio", "fetch"],
         "NSMicrophoneUsageDescription": "Runna needs microphone access for voice commands during your run",
         "NSSpeechRecognitionUsageDescription": "Runna uses speech recognition to understand your voice commands",
+        "NSLocationWhenInUseUsageDescription": "Runna needs your location to track distance, pace, and route during your runs.",
         "LSApplicationQueriesSchemes": ["spotify"]
       }
     },
@@ -39,6 +40,12 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Runna needs your location to track distance, pace, and route during your runs."
+        }
+      ],
       [
         "@wwdrew/expo-spotify-sdk",
         {

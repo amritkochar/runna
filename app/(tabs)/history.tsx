@@ -1,5 +1,5 @@
 import { StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Text, View } from '@/components/Themed';
 import { useRunStore } from '@/stores/runStore';
 import { useStrava } from '@/hooks/useStrava';
@@ -9,14 +9,30 @@ export default function HistoryScreen() {
   const { activities, stravaConnected } = useRunStore();
   const { syncActivities } = useStrava();
 
-  const onRefresh = useCallback(async () => {
-    if (!stravaConnected) return;
+  // Debug: Log when component mounts and when activities change
+  useEffect(() => {
+    console.log('📊 [History] Screen mounted');
+    console.log('📊 [History] Strava connected:', stravaConnected);
+    console.log('📊 [History] Activities count:', activities.length);
+    if (activities.length > 0) {
+      console.log('📊 [History] First activity:', activities[0].name);
+      console.log('📊 [History] Latest activity date:', activities[0].start_date);
+    }
+  }, [activities, stravaConnected]);
 
+  const onRefresh = useCallback(async () => {
+    if (!stravaConnected) {
+      console.log('⚠️ [History] Cannot sync - Strava not connected');
+      return;
+    }
+
+    console.log('🔄 [History] User initiated sync via pull-to-refresh');
     setRefreshing(true);
     try {
-      await syncActivities();
+      const newCount = await syncActivities();
+      console.log(`✅ [History] Sync complete - ${newCount} new activities synced`);
     } catch (error) {
-      console.error('Error syncing:', error);
+      console.error('❌ [History] Error syncing:', error);
     }
     setRefreshing(false);
   }, [stravaConnected, syncActivities]);
@@ -71,27 +87,27 @@ export default function HistoryScreen() {
           </Text>
           <Text style={styles.statLabel}>duration</Text>
         </View>
-        {item.average_heartrate && item.average_heartrate > 0 && (
+        {(item.average_heartrate ?? 0) > 0 && (
           <View style={styles.statItem}>
             <Text style={styles.statValue}>
-              {Math.round(item.average_heartrate)}
+              {Math.round(item.average_heartrate!)}
             </Text>
             <Text style={styles.statLabel}>avg bpm</Text>
           </View>
         )}
       </View>
 
-      {item.elevation_gain && item.elevation_gain > 0 && (
+      {(item.elevation_gain ?? 0) > 0 && (
         <View style={styles.extraStats}>
           <View style={styles.elevationBadge}>
             <Text style={styles.elevationText}>
-              ⬆ {Math.round(item.elevation_gain)}m
+              ⬆ {Math.round(item.elevation_gain!)}m
             </Text>
           </View>
-          {item.calories && item.calories > 0 && (
+          {(item.calories ?? 0) > 0 && (
             <View style={styles.caloriesBadge}>
               <Text style={styles.caloriesText}>
-                🔥 {Math.round(item.calories)} cal
+                🔥 {Math.round(item.calories!)} cal
               </Text>
             </View>
           )}
@@ -131,7 +147,7 @@ export default function HistoryScreen() {
     <FlatList
       data={activities}
       renderItem={renderActivity}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => String(item.id)}
       contentContainerStyle={styles.list}
       refreshControl={
         <RefreshControl

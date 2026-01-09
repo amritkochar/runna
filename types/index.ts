@@ -149,3 +149,32 @@ export interface AIFunction {
   description: string;
   parameters: Record<string, unknown>;
 }
+
+// GPS tracking types
+export interface LocationPoint {
+  latitude: number;
+  longitude: number;
+  altitude: number | null;
+  speed: number | null; // m/s
+  heading: number | null;
+  accuracy: number | null;
+  timestamp: number;
+}
+
+export interface GPSMetrics {
+  currentSpeed: number; // km/h
+  currentPace: number; // min/km
+  averageSpeed: number; // km/h
+  averagePace: number; // min/km
+  totalDistance: number; // meters
+  currentLocation: LocationPoint | null;
+}
+
+export type LocationPermissionStatus = 'granted' | 'denied' | 'undetermined';
+
+export type LocationErrorType =
+  | 'PERMISSION_DENIED'
+  | 'SERVICES_DISABLED'
+  | 'PROVIDER_UNAVAILABLE'
+  | 'TIMEOUT'
+  | 'UNKNOWN';

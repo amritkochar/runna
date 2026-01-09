@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Profile, Activity, SpotifyPlaybackState, RunnerPersona } from '../types';
+import type { Profile, Activity, SpotifyPlaybackState, RunnerPersona, LocationPoint, GPSMetrics, LocationPermissionStatus } from '../types';
 
 interface RunState {
   // User state
@@ -20,6 +20,12 @@ interface RunState {
   runStartTime: Date | null;
   runDistance: number;
   runDuration: number;
+
+  // GPS tracking
+  gpsMetrics: GPSMetrics;
+  routePoints: LocationPoint[];
+  locationPermission: LocationPermissionStatus;
+  gpsError: string | null;
 
   // Spotify state
   playbackState: SpotifyPlaybackState | null;
@@ -42,6 +48,13 @@ interface RunState {
   startRun: () => void;
   endRun: () => void;
   updateRunStats: (distance: number, duration: number) => void;
+
+  // GPS actions
+  setGPSMetrics: (metrics: GPSMetrics) => void;
+  addRoutePoint: (point: LocationPoint) => void;
+  setLocationPermission: (status: LocationPermissionStatus) => void;
+  setGPSError: (error: string | null) => void;
+  clearRoute: () => void;
 
   // Voice actions
   setListening: (listening: boolean) => void;
@@ -68,6 +81,17 @@ const initialState = {
   isListening: false,
   isSpeaking: false,
   voiceEnabled: true,
+  gpsMetrics: {
+    currentSpeed: 0,
+    currentPace: 0,
+    averageSpeed: 0,
+    averagePace: 0,
+    totalDistance: 0,
+    currentLocation: null,
+  },
+  routePoints: [],
+  locationPermission: 'undetermined' as LocationPermissionStatus,
+  gpsError: null,
 };
 
 export const useRunStore = create<RunState>((set) => ({
@@ -111,6 +135,30 @@ export const useRunStore = create<RunState>((set) => ({
 
   updateRunStats: (runDistance, runDuration) =>
     set({ runDistance, runDuration }),
+
+  setGPSMetrics: (gpsMetrics) => set({ gpsMetrics }),
+
+  addRoutePoint: (point) =>
+    set((state) => ({
+      routePoints: [...state.routePoints, point],
+    })),
+
+  setLocationPermission: (locationPermission) => set({ locationPermission }),
+
+  setGPSError: (gpsError) => set({ gpsError }),
+
+  clearRoute: () =>
+    set({
+      routePoints: [],
+      gpsMetrics: {
+        currentSpeed: 0,
+        currentPace: 0,
+        averageSpeed: 0,
+        averagePace: 0,
+        totalDistance: 0,
+        currentLocation: null,
+      },
+    }),
 
   setListening: (isListening) => set({ isListening }),
 

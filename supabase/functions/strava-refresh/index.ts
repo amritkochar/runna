@@ -3,8 +3,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID')!;
-const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET')!;
+const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID');
+const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,14 +18,31 @@ serve(async (req) => {
   }
 
   try {
+    // Check if environment variables are set
+    if (!STRAVA_CLIENT_ID || !STRAVA_CLIENT_SECRET) {
+      console.error('❌ Missing Strava credentials in environment variables');
+      console.error('STRAVA_CLIENT_ID:', STRAVA_CLIENT_ID ? 'Set' : 'Not set');
+      console.error('STRAVA_CLIENT_SECRET:', STRAVA_CLIENT_SECRET ? 'Set' : 'Not set');
+      return new Response(
+        JSON.stringify({
+          error: 'Server configuration error: Missing Strava credentials',
+          details: 'STRAVA_CLIENT_ID or STRAVA_CLIENT_SECRET not configured'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { refresh_token } = await req.json();
 
     if (!refresh_token) {
+      console.error('❌ Missing refresh token in request');
       return new Response(
         JSON.stringify({ error: 'Missing refresh token' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('🔄 Attempting to refresh Strava token...');
 
     // Refresh the token
     const response = await fetch('https://www.strava.com/oauth/token', {
@@ -42,15 +59,35 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Strava token refresh error:', error);
+      const errorText = await response.text();
+      console.error('❌ Strava token refresh error:', errorText);
+      console.error('❌ Status:', response.status);
+
+      let errorMessage = 'Failed to refresh token';
+      let errorDetails = errorText;
+
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.message) {
+          errorMessage = errorJson.message;
+        }
+        errorDetails = JSON.stringify(errorJson);
+      } catch {
+        // Error text is not JSON, use as-is
+      }
+
       return new Response(
-        JSON.stringify({ error: 'Failed to refresh token' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: errorMessage,
+          details: errorDetails,
+          status: response.status
+        }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
+    console.log('✅ Token refreshed successfully');
 
     return new Response(
       JSON.stringify({
@@ -61,9 +98,12 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error)
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
