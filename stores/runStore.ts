@@ -10,6 +10,9 @@ interface RunState {
   stravaConnected: boolean;
   spotifyConnected: boolean;
   spotifyIsPremium: boolean;
+  spotifyAccessToken: string | null;
+  spotifyRefreshToken: string | null;
+  spotifyTokenExpiresAt: number | null;
 
   // Running data
   activities: Activity[];
@@ -40,6 +43,7 @@ interface RunState {
   setLoading: (loading: boolean) => void;
   setStravaConnected: (connected: boolean) => void;
   setSpotifyConnected: (connected: boolean, isPremium: boolean) => void;
+  setSpotifyTokens: (accessToken: string | null, refreshToken: string | null, expiresIn?: number) => void;
   setActivities: (activities: Activity[]) => void;
   setRunnerPersona: (persona: RunnerPersona | null) => void;
   setPlaybackState: (state: SpotifyPlaybackState | null) => void;
@@ -71,6 +75,9 @@ const initialState = {
   stravaConnected: false,
   spotifyConnected: false,
   spotifyIsPremium: false,
+  spotifyAccessToken: null,
+  spotifyRefreshToken: null,
+  spotifyTokenExpiresAt: null,
   activities: [],
   runnerPersona: null,
   isRunning: false,
@@ -103,6 +110,10 @@ export const useRunStore = create<RunState>((set) => ({
       stravaConnected: !!profile?.strava_access_token,
       spotifyConnected: !!profile?.spotify_access_token,
       spotifyIsPremium: profile?.spotify_is_premium ?? false,
+      spotifyAccessToken: profile?.spotify_access_token ?? null,
+      spotifyRefreshToken: profile?.spotify_refresh_token ?? null,
+      // We don't get expiration from DB unfortunately, assume it's valid initially or let it fail 401 and refresh
+      spotifyTokenExpiresAt: null, 
       runnerPersona: profile?.runner_persona ?? null,
     }),
 
@@ -112,6 +123,13 @@ export const useRunStore = create<RunState>((set) => ({
 
   setSpotifyConnected: (spotifyConnected, spotifyIsPremium) =>
     set({ spotifyConnected, spotifyIsPremium }),
+
+  setSpotifyTokens: (accessToken, refreshToken, expiresIn) => 
+    set((state) => ({
+      spotifyAccessToken: accessToken,
+      ...(refreshToken !== undefined && { spotifyRefreshToken: refreshToken }),
+      ...(expiresIn !== undefined && { spotifyTokenExpiresAt: Date.now() + (expiresIn * 1000) })
+    })),
 
   setActivities: (activities) => set({ activities }),
 

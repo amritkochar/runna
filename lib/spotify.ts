@@ -14,8 +14,18 @@ export const SPOTIFY_SCOPES = [
 ];
 
 // Helper: Parse and throw Spotify errors
+// Helper: Parse and throw Spotify errors
 async function handleSpotifyError(response: Response) {
   if (response.status === 401) {
+    // Mark token as expired in store to force refresh on next attempt
+    try {
+      const store = (await import('../stores/runStore')).useRunStore.getState();
+      // Set expiration to 0 to force refresh
+      store.setSpotifyTokens(store.spotifyAccessToken, store.spotifyRefreshToken, -1);
+      console.log('Spotify 401: Marked token as expired in store');
+    } catch (e) {
+      console.error('Failed to invalidate token in store:', e);
+    }
     throw new Error('Spotify token expired');
   }
 
@@ -383,17 +393,91 @@ export async function refreshSpotifyToken(refreshToken: string): Promise<{
     throw new Error('Invalid token refresh response: missing access_token');
   }
 
+  // Update store with new tokens
+  // Import store dynamically to avoid circular dependencies if any (though usually fine in handlers)
+  // Actually we need to be careful with imports. Let's assume standard import works.
+  // We can't import hooks here, but we can import the store directly.
   return data;
 }
 
 // Get valid access token (refresh if needed)
 export async function getValidSpotifyToken(userId: string): Promise<string | null> {
+  // 1. Check Store Cache
+  // We need to import the store. Since it's a regular function, we can import it at top level or here.
+  // Let's rely on top-level import added in next step or use require if needed.
+  // Ideally, modify imports at top of file. 
+  // For now, let's assume `useRunStore` is available or we add it to imports.
+
+  // NOTE: This ReplaceBlock is large, so I will handle the import in a separate tool call to be safe 
+  // or I can assume I'll fix imports after. Let's try to do it all ensuring we have the import.
+
+  // ACCESS STORE DIRECTLY
+  // We need to add `import { useRunStore } from '../stores/runStore';` to the top of file.
+  // But wait, `useRunStore` is a hook. `useRunStore.getState()` is valid outside components.
+
+  const store = (await import('../stores/runStore')).useRunStore.getState();
+
+  if (store.spotifyAccessToken) {
+    const now = Date.now();
+    const expiresAt = store.spotifyTokenExpiresAt;
+
+    // Buffer of 60 seconds
+    if (!expiresAt || now < expiresAt - 60000) {
+      return store.spotifyAccessToken;
+    }
+
+    // Token expired or close to expiring, try refresh
+    if (store.spotifyRefreshToken) {
+      try {
+        console.log('Refreshing expired Spotify token from store cache...');
+        const tokens = await refreshSpotifyToken(store.spotifyRefreshToken);
+
+        // Update store
+        store.setSpotifyTokens(tokens.access_token, tokens.refresh_token || store.spotifyRefreshToken, tokens.expires_in);
+
+        // Update Supabase (optimistic, don't wait)
+        updateProfile(userId, {
+          spotify_access_token: tokens.access_token,
+          ...(tokens.refresh_token && { spotify_refresh_token: tokens.refresh_token }),
+        }).catch(err => console.error('Failed to persist refreshed token:', err));
+
+        return tokens.access_token;
+      } catch (e: any) {
+        // Handle failed refresh (invalid grant, revoked access, 400/401)
+        // If the refresh token is bad, we MUST clear it to stop the loop.
+        console.warn('Refresh failed, disconnecting Spotify:', e.message || e);
+
+        // Clear tokens from store immediately
+        store.setSpotifyTokens(null, null, undefined);
+        store.setSpotifyConnected(false, false);
+
+        // Clear from database to prevent future issues
+        try {
+          await updateProfile(userId, {
+            spotify_access_token: null,
+            spotify_refresh_token: null,
+            spotify_is_premium: false
+          });
+        } catch (dbError) {
+          console.warn('Failed to clear Supabase tokens:', dbError);
+        }
+
+        return null;
+      }
+    } else {
+      // No refresh token but we have an expired access token?
+      // Should probably just return null and let the next logic decide, 
+      // but typically this means we are disconnected.
+      // Let's safe fallthrough? No, if it's expired and no refresh token, it's dead.
+      return null;
+    }
+  }
+
+  // 2. Fallback to Supabase (Initial load or cache miss)
   // First verify we have a valid Supabase session
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
   if (sessionError || !session) {
-    // No valid session - don't spam logs, just return null
-    // The auth system will handle re-authentication
     return null;
   }
 
@@ -404,77 +488,46 @@ export async function getValidSpotifyToken(userId: string): Promise<string | nul
     .single();
 
   if (profileError) {
-    // Check if it's an auth-related error (PGRST301 is "JWT expired" or similar)
     const isAuthError = profileError.code === 'PGRST301' ||
-                        profileError.message?.includes('JWT') ||
-                        profileError.message?.includes('session');
+      profileError.message?.includes('JWT') ||
+      profileError.message?.includes('session');
 
-    if (isAuthError) {
-      // Auth error - don't spam logs, the session has expired
-      return null;
-    }
+    if (isAuthError) return null;
 
-    // Other error - log it once but don't throw
     console.error('Error fetching profile for Spotify token:', {
       code: profileError.code,
       message: profileError.message,
-      details: profileError.details,
     });
     return null;
   }
 
   if (!profile?.spotify_access_token) {
-    // No token stored - this is normal if user hasn't connected Spotify
     return null;
   }
 
+  // Update store with fetched token (assume valid for now as we don't have expiration from DB)
+  // We can't know when it expires, so we set it to null or a short default? 
+  // Safest is to set it, use it, and if 401 happens, handleSpotifyError detects it.
+  // But wait, `handleSpotifyError` throws. We need to catch 401 somewhere?
+  // `getValidSpotifyToken` just gets a token. The consumer calls API. 
+  // If API returns 401, consumer should probably trigger refresh.
+  // BUT the current architecture relies on `getValidSpotifyToken` to checking expiration.
+  // Since we don't have expiration from DB, we just return it.
+  // If we want to be smarter, we could `try` a lightweight call? No, that defeats the purpose.
+
+  // Let's treat DB tokens as "Unknown expiration" (null).
+  // If they fail downstream, we can improve `handleSpotifyError` to invalidate store.
+
+  store.setSpotifyTokens(profile.spotify_access_token, profile.spotify_refresh_token, undefined);
+
   // Try to use current token first
-  try {
-    await getSpotifyUser(profile.spotify_access_token);
-    return profile.spotify_access_token;
-  } catch (error: any) {
-    // Token expired or invalid, try to refresh if we have a refresh token
-    if (!profile.spotify_refresh_token) {
-      // No refresh token - clear the invalid access token silently
-      // This is common on Android with native SDK
-      try {
-        await updateProfile(userId, {
-          spotify_access_token: null,
-        });
-      } catch {
-        // Ignore update errors (might be due to session issues)
-      }
-      return null;
-    }
+  // We verified it exists.
 
-    try {
-      const tokens = await refreshSpotifyToken(profile.spotify_refresh_token);
+  // OPTIONAL: We could proactively check validity with `getSpotifyUser` but that adds latency.
+  // Let's stick to the requested fix: reduce DB polling.
+  // Returning the token from DB is fine.
 
-      await updateProfile(userId, {
-        spotify_access_token: tokens.access_token,
-        ...(tokens.refresh_token && { spotify_refresh_token: tokens.refresh_token }),
-      });
-
-      return tokens.access_token;
-    } catch (refreshError: any) {
-      // Refresh failed - log once and clear tokens
-      console.error('Spotify token refresh failed, clearing tokens:', {
-        error: refreshError.message || String(refreshError),
-      });
-
-      // Clear invalid tokens to avoid repeated failed refresh attempts
-      try {
-        await updateProfile(userId, {
-          spotify_access_token: null,
-          spotify_refresh_token: null,
-        });
-      } catch {
-        // Ignore update errors (might be due to session issues)
-      }
-
-      return null;
-    }
-  }
+  return profile.spotify_access_token;
 }
 
 // Check if user is premium
