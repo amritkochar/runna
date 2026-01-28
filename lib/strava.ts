@@ -1,6 +1,6 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import type { Activity, StravaActivity, StravaAthlete, RunnerPersona } from '../types';
+import type { Activity, RunnerPersona, StravaActivity, StravaAthlete } from '../types';
 import { supabase, updateProfile } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -67,12 +67,24 @@ export async function exchangeStravaCode(code: string): Promise<{
 }
 
 // Refresh Strava token
-export async function refreshStravaToken(refreshToken: string): Promise<{
+export async function refreshStravaToken(refreshToken: string, retryCount = 0): Promise<{
   access_token: string;
   refresh_token: string;
   expires_at: number;
 }> {
-  console.log('🔄 [Strava] Refreshing token...');
+  console.log(`🔄 [Strava] Refreshing token...${retryCount > 0 ? ` (Retry ${retryCount})` : ''}`);
+
+  // Ensure we have a valid session before invoking the function
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session) {
+    console.warn('⚠️ [Strava] No active Supabase session before refreshing token');
+    // We try to refresh the session if it's missing/invalid before making the call
+    const { error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) {
+      console.error('❌ [Strava] Failed to refresh Supabase session:', refreshError);
+      throw new Error('Authentication lost. Please log in again.');
+    }
+  }
 
   const { data, error } = await supabase.functions.invoke('strava-refresh', {
     body: { refresh_token: refreshToken },
@@ -83,13 +95,37 @@ export async function refreshStravaToken(refreshToken: string): Promise<{
 
     // Try to extract more detailed error information
     let errorDetails = error.message;
+    let isAuthError = false;
+
     if (error.context) {
       try {
         const errorBody = await error.context.json();
         errorDetails = errorBody.error || errorBody.details || error.message;
+
+        // Check for 401 Invalid JWT which means the edge function rejected our auth
+        if (error.context.status === 401) {
+          isAuthError = true;
+          console.warn('⚠️ [Strava] Got 401 from Edge Function (likely invalid JWT)');
+        }
+
         console.error('❌ [Strava] Error details from Edge Function:', errorBody);
       } catch (e) {
         console.warn('⚠️ [Strava] Could not parse error context:', e);
+        // Fallback check for status in the error object structure if available
+        if (error.context?.status === 401) isAuthError = true;
+      }
+    }
+
+    // RETRY LOGIC: If it was a 401 (Invalid JWT), try to refresh session and retry ONCE
+    if (isAuthError && retryCount < 1) {
+      console.log('🔄 [Strava] Attempting to refresh Supabase session and retry...');
+      const { error: refreshError } = await supabase.auth.refreshSession();
+
+      if (!refreshError) {
+        console.log('✅ [Strava] Supabase session refreshed, retrying function call...');
+        return refreshStravaToken(refreshToken, retryCount + 1);
+      } else {
+        console.error('❌ [Strava] Failed to refresh Supabase session during retry:', refreshError);
       }
     }
 

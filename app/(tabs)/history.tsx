@@ -1,13 +1,15 @@
-import { StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
-import { useState, useCallback, useEffect } from 'react';
 import { Text, View } from '@/components/Themed';
-import { useRunStore } from '@/stores/runStore';
 import { useStrava } from '@/hooks/useStrava';
+import { useRunStore } from '@/stores/runStore';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
 
 export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const { activities, stravaConnected } = useRunStore();
   const { syncActivities } = useStrava();
+  const router = useRouter();
 
   // Debug: Log when component mounts and when activities change
   useEffect(() => {
@@ -31,11 +33,32 @@ export default function HistoryScreen() {
     try {
       const newCount = await syncActivities();
       console.log(`✅ [History] Sync complete - ${newCount} new activities synced`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [History] Error syncing:', error);
+
+      // Check if it's an auth error (from our strava.ts retry logic or direct 401)
+      if (
+        error.message?.includes('reconnect') ||
+        error.message?.includes('Authentication lost') ||
+        error.message?.includes('401')
+      ) {
+        Alert.alert(
+          'Connection Issue',
+          'We couldn\'t refresh your Strava connection. Please reconnect your account in Settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Go to Settings',
+              onPress: () => router.push('/(tabs)/settings')
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Sync Failed', 'Could not sync with Strava. Please try again later.');
+      }
     }
     setRefreshing(false);
-  }, [stravaConnected, syncActivities]);
+  }, [stravaConnected, syncActivities, router]);
 
   const formatPace = (seconds: number, meters: number) => {
     const paceMinPerKm = (seconds / 60) / (meters / 1000);
