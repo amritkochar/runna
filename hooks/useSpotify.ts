@@ -27,7 +27,7 @@ export function useSpotify() {
     setPlaybackState,
   } = useRunStore();
 
-  const pollInterval = useRef<NodeJS.Timeout | null>(null);
+  const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollErrorCount = useRef(0);
 
   // Poll for playback state
@@ -210,7 +210,7 @@ export function useSpotify() {
               devices.find((d: any) => d.type === 'Computer') ||
               devices[0];
 
-            if (targetDevice) {
+            if (targetDevice && targetDevice.id) {
               console.log(`Activating device: ${targetDevice.name} (${targetDevice.id})`);
 
               // We can pass the device ID to the action directly if supported,

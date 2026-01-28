@@ -201,6 +201,14 @@ export function useStrava() {
     } catch (error: any) {
       console.error('Error syncing activities:', error);
 
+      // Update connection state when token refresh fails
+      if (error.message?.includes('Token refresh failed') ||
+          error.message?.includes('No valid Strava token') ||
+          error.message?.includes('reconnect your Strava account')) {
+        console.log('🔌 [Strava] Disconnecting due to token failure');
+        setStravaConnected(false);
+      }
+
       // Show user-friendly error message
       let errorMessage = 'Failed to sync activities. ';
 
@@ -230,11 +238,25 @@ export function useStrava() {
 
     try {
       const token = await getValidStravaToken(user.id);
-      return !!token;
-    } catch {
+      const isConnected = !!token;
+
+      // Update connection state if it doesn't match
+      if (!isConnected && stravaConnected) {
+        console.log('🔌 [Strava] Token invalid, updating connection state to false');
+        setStravaConnected(false);
+      }
+
+      return isConnected;
+    } catch (error) {
+      console.warn('⚠️ [Strava] Token validation failed:', error);
+      // Token invalid - update connection state
+      if (stravaConnected) {
+        console.log('🔌 [Strava] Disconnecting due to validation failure');
+        setStravaConnected(false);
+      }
       return false;
     }
-  }, [user]);
+  }, [user, stravaConnected, setStravaConnected]);
 
   return {
     stravaConnected,

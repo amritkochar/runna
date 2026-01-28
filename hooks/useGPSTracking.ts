@@ -310,15 +310,33 @@ export function useGPSTracking() {
       console.log('🧹 [GPS] Clearing previous route data...');
       clearRoute();
 
-      // For simulator, use more frequent updates
-      const isSimulator = __DEV__ && Platform.OS === 'ios';
+      // Use consistent tracking config for all devices
+      // Reduced distanceInterval to ensure updates even when walking slowly
       const trackingConfig = {
         accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: isSimulator ? 1000 : 5000, // 1s for simulator, 5s for device
-        distanceInterval: isSimulator ? 1 : 10,   // 1m for simulator, 10m for device
+        timeInterval: 3000,      // 3 seconds - balance between battery and responsiveness
+        distanceInterval: 1,     // 1 meter - ensures updates even when walking slowly
       };
 
       console.log('⚙️ [GPS] Tracking configuration:', trackingConfig);
+
+      // Get initial position first to start with a known location
+      console.log('📍 [GPS] Acquiring initial position...');
+      try {
+        const initialPosition = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.BestForNavigation,
+        });
+        console.log('📍 [GPS] Initial position acquired:', {
+          lat: initialPosition.coords.latitude,
+          lng: initialPosition.coords.longitude,
+          accuracy: initialPosition.coords.accuracy,
+        });
+        handleLocationUpdate(initialPosition);
+      } catch (e) {
+        console.warn('⚠️ [GPS] Could not get initial position:', e);
+        console.log('⏳ [GPS] Will wait for first location update from watch...');
+      }
+
       console.log('⏳ [GPS] Starting location watch...');
 
       // Start watching position with optimal settings for running
@@ -341,11 +359,8 @@ export function useGPSTracking() {
       console.log('✅ [GPS] GPS tracking started successfully!');
       console.log('✅ [GPS] Subscription created:', !!subscriptionRef.current);
       console.log('✅ [GPS] Waiting for location updates...');
-
-      if (isSimulator) {
-        console.log('💡 [GPS] SIMULATOR DETECTED - Set location via:');
-        console.log('   Features → Location → Custom Location (or City Run)');
-      }
+      console.log('💡 [GPS] Note: GPS may take 10-60 seconds for first accurate position');
+      console.log('💡 [GPS] For best results, ensure clear view of sky outdoors');
     } catch (error) {
       console.error('❌ [GPS] Error starting GPS tracking:', error);
       console.error('❌ [GPS] Error details:', JSON.stringify(error, null, 2));

@@ -7,6 +7,7 @@ import {
   RTCPeerConnection,
   RTCSessionDescription,
 } from 'react-native-webrtc';
+import { Audio } from 'expo-av';
 import type { RunnerPersona, SpotifyTrack } from '../types';
 import { supabase } from './supabase';
 
@@ -226,13 +227,24 @@ export class RealtimeClient {
 
   async connect(ephemeralToken: string): Promise<void> {
     try {
+      // Configure audio session for optimal voice companion audio on iOS
+      console.log('🔊 [Audio] Configuring audio session...');
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,           // Required for microphone access
+        playsInSilentModeIOS: true,         // Play audio even when device is in silent mode
+        staysActiveInBackground: true,      // Keep audio active in background
+        shouldDuckAndroid: true,            // Lower other audio on Android
+        playThroughEarpieceAndroid: false,  // Use speaker, not earpiece on Android
+      });
+      console.log('✅ [Audio] Audio session configured');
+
       // Create peer connection
       this.peerConnection = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
 
       // Set up audio playback - React Native WebRTC handles audio automatically
-      this.peerConnection.ontrack = (event: any) => {
+      (this.peerConnection as any).ontrack = (event: any) => {
         console.log('Received remote audio track');
         // Audio will play automatically in React Native WebRTC
       };
@@ -249,7 +261,7 @@ export class RealtimeClient {
       });
 
       // Create data channel for events
-      this.dataChannel = this.peerConnection.createDataChannel('oai-events');
+      this.dataChannel = this.peerConnection.createDataChannel('oai-events') as unknown as RTCDataChannel;
       this.setupDataChannel();
 
       // Create and set local description

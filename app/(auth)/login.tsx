@@ -7,6 +7,8 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,11 +57,12 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Runna</Text>
-          <Text style={styles.subtitle}>Your AI Running Companion</Text>
-        </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Runna</Text>
+            <Text style={styles.subtitle}>Your AI Running Companion</Text>
+          </View>
 
         <View style={styles.form}>
           <TextInput
@@ -116,7 +119,8 @@ export default function LoginScreen() {
           <Text style={styles.feature}>Spotify control with your voice</Text>
           <Text style={styles.feature}>AI that knows your running style</Text>
         </View>
-      </View>
+        </View>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
@@ -155,11 +159,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     backgroundColor: 'transparent',
-    color: '#fff',
+    color: '#FF7F30',
   },
   button: {
     height: 52,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#FF7F30',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

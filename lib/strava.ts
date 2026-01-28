@@ -1,6 +1,6 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import type { Activity, StravaActivity, StravaAthlete } from '../types';
+import type { Activity, StravaActivity, StravaAthlete, RunnerPersona } from '../types';
 import { supabase, updateProfile } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -11,7 +11,7 @@ const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 
 // OAuth scopes we need
-const STRAVA_SCOPES = ['activity:read_all,read'];
+const STRAVA_SCOPES = ['activity:read_all,activity:write,profile:read_all'];
 
 // Discovery document for Strava OAuth
 const discovery = {
@@ -80,7 +80,20 @@ export async function refreshStravaToken(refreshToken: string): Promise<{
 
   if (error) {
     console.error('❌ [Strava] Token refresh error:', error);
-    throw new Error(`Failed to refresh Strava token: ${error.message}`);
+
+    // Try to extract more detailed error information
+    let errorDetails = error.message;
+    if (error.context) {
+      try {
+        const errorBody = await error.context.json();
+        errorDetails = errorBody.error || errorBody.details || error.message;
+        console.error('❌ [Strava] Error details from Edge Function:', errorBody);
+      } catch (e) {
+        console.warn('⚠️ [Strava] Could not parse error context:', e);
+      }
+    }
+
+    throw new Error(`Failed to refresh Strava token: ${errorDetails}`);
   }
 
   if (!data) {
@@ -312,6 +325,84 @@ export async function syncStravaActivities(userId: string): Promise<number> {
   return newActivitiesCount;
 }
 
+// Upload a run to Strava
+export async function uploadRunToStrava(params: {
+  userId: string;
+  name: string;
+  startTime: Date;
+  elapsedTimeSeconds: number;
+  distanceMeters: number;
+  description?: string;
+}): Promise<{ id: number; name: string }> {
+  console.log('📤 [Strava] Uploading run to Strava...', {
+    name: params.name,
+    distance: `${(params.distanceMeters / 1000).toFixed(2)} km`,
+    duration: `${Math.floor(params.elapsedTimeSeconds / 60)}:${(params.elapsedTimeSeconds % 60).toString().padStart(2, '0')}`,
+  });
+
+  // Get valid access token with write permission
+  let accessToken: string | null;
+  try {
+    accessToken = await getValidStravaToken(params.userId);
+  } catch (error: any) {
+    console.error('❌ [Strava] Failed to get valid token:', error);
+    throw new Error(`Failed to authenticate with Strava: ${error.message}`);
+  }
+
+  if (!accessToken) {
+    throw new Error('No valid Strava token. Please reconnect your Strava account.');
+  }
+
+  // Format start time as ISO 8601
+  const startDateLocal = params.startTime.toISOString();
+
+  // Prepare activity data
+  const activityData = {
+    name: params.name,
+    type: 'Run',
+    start_date_local: startDateLocal,
+    elapsed_time: params.elapsedTimeSeconds,
+    distance: params.distanceMeters,
+    description: params.description || undefined,
+  };
+
+  console.log('📤 [Strava] Sending activity data:', activityData);
+
+  // Upload to Strava
+  const response = await fetch(`${STRAVA_API_BASE}/activities`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(activityData),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('❌ [Strava] Upload failed:', response.status, errorText);
+
+    // Handle specific error cases
+    if (response.status === 401) {
+      throw new Error('Authentication failed. Please reconnect your Strava account.');
+    } else if (response.status === 403) {
+      throw new Error('Permission denied. Please reconnect Strava to grant activity upload permission.');
+    } else if (response.status === 429) {
+      throw new Error('Rate limit exceeded. Please try again in a few minutes.');
+    } else {
+      throw new Error(`Failed to upload activity to Strava (${response.status}): ${errorText}`);
+    }
+  }
+
+  const result = await response.json();
+  console.log('✅ [Strava] Activity uploaded successfully:', result.id);
+
+  return {
+    id: result.id,
+    name: result.name,
+  };
+}
+
 // Calculate running stats for AI persona
 export async function calculateRunnerPersona(userId: string) {
   const { data: activities } = await supabase
@@ -366,15 +457,15 @@ export async function calculateRunnerPersona(userId: string) {
   const recentRuns = activities.filter((a) => new Date(a.start_date) > thirtyDaysAgo);
   const runsPerWeek = (recentRuns.length / 30) * 7;
 
-  const persona = {
+  const persona: RunnerPersona = {
     typical_distance_km: Math.round(avgDistanceKm * 10) / 10,
     average_pace_min_per_km: Math.round(avgPaceMinPerKm * 10) / 10,
     preferred_run_time: preferredTime,
     heart_rate_zones: avgHR
       ? {
-        easy: [Math.round(avgHR * 0.6), Math.round(avgHR * 0.7)],
-        tempo: [Math.round(avgHR * 0.8), Math.round(avgHR * 0.9)],
-        threshold: [Math.round(avgHR * 0.9), Math.round(avgHR * 1.0)],
+        easy: [Math.round(avgHR * 0.6), Math.round(avgHR * 0.7)] as [number, number],
+        tempo: [Math.round(avgHR * 0.8), Math.round(avgHR * 0.9)] as [number, number],
+        threshold: [Math.round(avgHR * 0.9), Math.round(avgHR * 1.0)] as [number, number],
       }
       : null,
     recent_accomplishments: recentAccomplishments,

@@ -22,7 +22,7 @@ export interface RunnerPersona {
     easy: [number, number];
     tempo: [number, number];
     threshold: [number, number];
-  };
+  } | null;
   recent_accomplishments: string[];
   running_frequency: number; // runs per week
   total_runs: number;
@@ -31,7 +31,7 @@ export interface RunnerPersona {
 export interface Activity {
   id: string;
   user_id: string;
-  strava_activity_id: number;
+  strava_activity_id: number | null;
   name: string;
   type: string;
   distance_meters: number;
@@ -111,6 +111,7 @@ export interface SpotifyUser {
 
 export interface SpotifyTrack {
   id: string;
+  uri: string;
   name: string;
   artists: { name: string }[];
   album: {

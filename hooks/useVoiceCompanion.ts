@@ -226,8 +226,9 @@ export function useVoiceCompanion() {
       });
 
       // Build system prompt
+      const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Runner';
       const prompt = buildSystemPrompt(
-        profile?.full_name || 'Runner',
+        userName,
         runnerPersona,
         currentTrack,
         isRunning,

@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TouchableOpacity, Animated, ScrollView } from 'react-native';
+import { StyleSheet, TouchableOpacity, Animated, ScrollView, Alert } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useRunStore } from '@/stores/runStore';
 import { useSpotify } from '@/hooks/useSpotify';
 import { useVoiceCompanion } from '@/hooks/useVoiceCompanion';
 import { useGPSTracking } from '@/hooks/useGPSTracking';
+import { useAuth } from '@/hooks/useAuth';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { validateRunData, formatValidationErrors, formatValidationWarnings } from '@/lib/runValidation';
+import { uploadRunToStrava } from '@/lib/strava';
+import { saveRunLocally, generateRunName, formatRunStats } from '@/lib/runs';
 
 export default function RunScreen() {
   const {
@@ -16,14 +20,19 @@ export default function RunScreen() {
     isListening,
     isSpeaking,
     gpsMetrics,
+    routePoints,
     locationPermission,
     gpsError,
+    stravaConnected,
     startRun,
     endRun,
     updateRunStats,
     setVoiceEnabled,
     setListening,
+    clearRoute,
   } = useRunStore();
+
+  const { user } = useAuth();
 
   const {
     spotifyConnected,
@@ -55,7 +64,7 @@ export default function RunScreen() {
 
   // Timer effect
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval> | undefined;
 
     if (isRunning && runStartTime) {
       interval = setInterval(() => {
@@ -66,7 +75,7 @@ export default function RunScreen() {
     }
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval !== undefined) clearInterval(interval);
     };
   }, [isRunning, runStartTime, updateRunStats]);
 
@@ -119,15 +128,203 @@ export default function RunScreen() {
     return kmh.toFixed(1);
   };
 
-  const handleStartStop = () => {
+  const handleStartStop = async () => {
     console.log('🏃 [UI] Start/Stop button pressed - Current state:', isRunning);
     if (isRunning) {
       console.log('⏹️ [UI] Ending run...');
+
+      // Capture current run data before clearing
+      const runData = {
+        startTime: runStartTime!,
+        duration: runDuration,
+        distance: gpsMetrics.totalDistance,
+        routePoints: routePoints,
+        averagePace: gpsMetrics.averagePace,
+        averageSpeed: gpsMetrics.averageSpeed,
+        maxSpeed: gpsMetrics.currentSpeed, // Use current as approximation for max
+      };
+
+      // End the run (clears state)
       endRun();
       setDuration(0);
+
+      // Validate run data
+      const validation = validateRunData({
+        distanceMeters: runData.distance,
+        durationSeconds: runData.duration,
+        routePointsCount: runData.routePoints.length,
+        startTime: runData.startTime,
+      });
+
+      console.log('📊 [UI] Run validation:', validation);
+
+      // If invalid, show error and clear route
+      if (!validation.isValid) {
+        Alert.alert('Cannot Save Run', formatValidationErrors(validation));
+        clearRoute();
+        return;
+      }
+
+      // Show warnings if any
+      const warningsText = formatValidationWarnings(validation);
+      if (warningsText) {
+        console.warn('⚠️ [UI] Run validation warnings:', warningsText);
+        Alert.alert('Warning', warningsText);
+      }
+
+      // Show save options dialog
+      showSaveOptionsDialog(runData);
     } else {
       console.log('▶️ [UI] Starting run...');
       startRun();
+    }
+  };
+
+  const showSaveOptionsDialog = (runData: {
+    startTime: Date;
+    duration: number;
+    distance: number;
+    routePoints: any[];
+    averagePace: number;
+    averageSpeed: number;
+    maxSpeed: number;
+  }) => {
+    const statsText = formatRunStats(runData.distance, runData.duration);
+
+    const buttons: any[] = [
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => {
+          console.log('🗑️ [UI] Run discarded');
+          clearRoute();
+        },
+      },
+      {
+        text: 'Save Locally',
+        onPress: () => handleSaveLocally(runData),
+      },
+    ];
+
+    // Only show "Upload to Strava" if connected
+    if (stravaConnected) {
+      buttons.push({
+        text: 'Upload to Strava',
+        onPress: () => handleUploadToStrava(runData),
+      });
+    }
+
+    Alert.alert('Save Your Run?', statsText, buttons.reverse(), { cancelable: false });
+  };
+
+  const handleSaveLocally = async (runData: {
+    startTime: Date;
+    duration: number;
+    distance: number;
+    routePoints: any[];
+    averageSpeed: number;
+    maxSpeed: number;
+  }) => {
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to save runs');
+      return;
+    }
+
+    try {
+      console.log('💾 [UI] Saving run locally...');
+
+      const runName = generateRunName(runData.startTime);
+
+      await saveRunLocally({
+        userId: user.id,
+        name: runName,
+        startTime: runData.startTime,
+        distanceMeters: runData.distance,
+        movingTimeSeconds: runData.duration,
+        elapsedTimeSeconds: runData.duration,
+        averageSpeed: runData.averageSpeed,
+        maxSpeed: runData.maxSpeed,
+        routePoints: runData.routePoints,
+      });
+
+      clearRoute();
+      Alert.alert('Success', 'Run saved locally!');
+      console.log('✅ [UI] Run saved locally');
+    } catch (error: any) {
+      console.error('❌ [UI] Failed to save run locally:', error);
+      Alert.alert('Error', `Failed to save run: ${error.message}`);
+    }
+  };
+
+  const handleUploadToStrava = async (runData: {
+    startTime: Date;
+    duration: number;
+    distance: number;
+    routePoints: any[];
+    averageSpeed: number;
+    maxSpeed: number;
+  }) => {
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to upload runs');
+      return;
+    }
+
+    try {
+      console.log('📤 [UI] Uploading run to Strava...');
+
+      const runName = generateRunName(runData.startTime);
+
+      const result = await uploadRunToStrava({
+        userId: user.id,
+        name: runName,
+        startTime: runData.startTime,
+        elapsedTimeSeconds: runData.duration,
+        distanceMeters: runData.distance,
+      });
+
+      console.log('✅ [UI] Run uploaded to Strava:', result);
+
+      // Also save locally with Strava activity ID
+      await saveRunLocally({
+        userId: user.id,
+        name: runName,
+        startTime: runData.startTime,
+        distanceMeters: runData.distance,
+        movingTimeSeconds: runData.duration,
+        elapsedTimeSeconds: runData.duration,
+        averageSpeed: runData.averageSpeed,
+        maxSpeed: runData.maxSpeed,
+        routePoints: runData.routePoints,
+        stravaActivityId: result.id,
+      });
+
+      clearRoute();
+      Alert.alert('Success', `Run uploaded to Strava!\n\nActivity: ${result.name}`);
+      console.log('✅ [UI] Run saved locally with Strava ID');
+    } catch (error: any) {
+      console.error('❌ [UI] Failed to upload run to Strava:', error);
+
+      // Check for specific error cases
+      if (error.message.includes('reconnect') || error.message.includes('Permission denied')) {
+        Alert.alert(
+          'Strava Connection Error',
+          error.message + '\n\nWould you like to save the run locally instead?',
+          [
+            { text: 'Discard', style: 'destructive' },
+            { text: 'Save Locally', onPress: () => handleSaveLocally(runData) },
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Upload Failed',
+          error.message + '\n\nWould you like to save the run locally instead?',
+          [
+            { text: 'Discard', style: 'destructive' },
+            { text: 'Retry', onPress: () => handleUploadToStrava(runData) },
+            { text: 'Save Locally', onPress: () => handleSaveLocally(runData) },
+          ]
+        );
+      }
     }
   };
 
